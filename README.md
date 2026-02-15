@@ -1,10 +1,10 @@
-# MediVault AI Healthcare 🏥
+# MediVault AI Healthcare
 
 **MediVault** is a patient-owned AI medical vault system designed to solve the problem of fragmented medical records in India. It empowers citizens to digitize, understand, and securely share their health data using an autonomous, agentic AI pipeline.
 
 ---
 
-## 🚀 Phase 1 Submission: Core Features
+## Phase 1 Submission: Core Features
 
 ### 1. The Trusted Pipeline (HITL & Normalization)
 MediVault transforms unstructured, handwritten prescriptions into structured data. 
@@ -23,7 +23,7 @@ Built for "Bharat," MediVault breaks literacy and language barriers.
 
 ---
 
-## 🛠️ Tech Stack (AWS Native)
+## Tech Stack (AWS Native)
 
 | Service | Purpose |
 | :--- | :--- |
@@ -35,7 +35,7 @@ Built for "Bharat," MediVault breaks literacy and language barriers.
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 * [`requirements.md`](./requirements.md): Detailed functional and non-functional requirements (EARS format).
 * [`design.md`](./design.md): System architecture, AWS service integration, and Mermaid diagrams.
