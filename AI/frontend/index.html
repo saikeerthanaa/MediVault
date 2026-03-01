@@ -926,8 +926,14 @@ select option {
                                 <div class="score-badge" id="confidence-score">—</div>
                             </div>
                             <div class="preview-item">
-                                <label>Extracted Text</label>
-                                <div class="text-preview" id="text-preview"></div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <label>Extracted Text</label>
+                                    <button id="btn-edit-text" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">
+                                        ✏️ Edit
+                                    </button>
+                                </div>
+                                <div class="text-preview" id="text-preview" style="display: block;"></div>
+                                <textarea id="text-preview-editable" class="text-input" rows="6" placeholder="Edit extracted text..." style="display: none; margin-top: 10px;"></textarea>
                             </div>
                             <button id="btn-continue-extract" class="btn btn-primary" style="margin-top: 20px;">
                                 Continue to Normalize →
@@ -1030,7 +1036,7 @@ select option {
                             <select id="voice-select" class="text-input">
                                 <option value="Joanna">Joanna (Female, US)</option>
                                 <option value="Matthew">Matthew (Male, US)</option>
-                                <option value="Raveesh">Raveesh (Male, India)</option>
+                                <option value="Raveena">Raveena (Female, India)</option>
                                 <option value="Aditi">Aditi (Female, India)</option>
                             </select>
                         </div>
@@ -1039,8 +1045,8 @@ select option {
                             <button id="btn-generate-audio" class="btn btn-primary">
                                 🎤 Generate Audio
                             </button>
-                            <button id="btn-skip-voice" class="btn btn-secondary">
-                                ⏭ Skip & Complete
+                            <button id="btn-continue-voice" class="btn btn-primary">
+                                → Continue
                             </button>
                         </div>
 

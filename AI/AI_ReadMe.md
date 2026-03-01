@@ -37,7 +37,7 @@ MediVault is a **patient-owned AI medical vault system** designed for India, ena
 
 ---
 
-## ✅ AI Implementation Status: COMPLETE (8/8 Tasks) + Database Integration + Phase 5 UI Redesign
+## ✅ AI Implementation Status: COMPLETE (8/8 Tasks) + Database + UI Redesign + Lab Reports
 
 All design.md tasks are fully implemented, tested, and verified. Phase 4 (Database Persistence) complete. Phase 5 (UI Redesign) complete:
 
@@ -55,7 +55,7 @@ All design.md tasks are fully implemented, tested, and verified. Phase 4 (Databa
 | **10** | **Automated drug interaction checking** | ✅ | **app.py /ai/save-prescription** |
 | **11** | **HITL confirmation to database save** | ✅ | **frontend/app.js + index.html** |
 | **12** | **Phase 5: Glassmorphism UI redesign** | ✅ | **frontend/index.html + app.js** |
-| **13** | **Lab reports support (schema ready)** | 📋 | **DATABASE_SCHEMA.json** |
+| **13** | **Lab reports upload + S3 storage** | ✅ | **s3_service.py + app.py** |
 
 **Frontend Changes (Phase 5)**:
 - ✅ New warm amber/orange/brown gradient background
@@ -72,7 +72,7 @@ All design.md tasks are fully implemented, tested, and verified. Phase 4 (Databa
 
 ---
 
-## 📡 API Endpoints (8 Total)
+## 📡 API Endpoints (11 Total)
 
 ### 1. Health Check
 **GET `/`**
@@ -311,7 +311,33 @@ Response: {"ok": true/false, "bedrock_status": "ACTIVE|UNAVAILABLE"}
   - FHIR bundle generation and storage
   - Prescription history preservation
 
-### 10. Check Database Status
+### 10. Save Lab Report
+**POST `/ai/save-lab-report`**
+- **Input** (multipart/form-data):
+  ```
+  file: <binary file content> (JPEG/PNG/PDF)
+  patient_id: 1
+  test_date: "2026-03-01"
+  report_type: "Blood"           // Blood|Urine|Thyroid|Lipid|Liver|Kidney|Imaging|Other
+  lab_name: "Apollo Diagnostics"  // optional
+  ```
+- **Output**:
+  ```json
+  {
+    "ok": true,
+    "lab_report_id": 15,
+    "s3_url": "https://medivault-lab-reports.s3.ap-south-1.amazonaws.com/lab-reports/abc12345.pdf",
+    "message": "Lab report saved successfully"
+  }
+  ```
+- **Status**: ✅ Implemented
+- **Features**:
+  - Uploads file to S3 (`medivault-lab-reports` bucket)
+  - Stores metadata in `lab_reports` MySQL table
+  - Supports Blood, Urine, Thyroid, Lipid, Liver, Kidney, Imaging, Other report types
+  - Frontend panel with drag-and-drop upload
+
+### 11. Check Database Status
 **GET `/ai/check-database`**
 - **Output**:
   ```json
@@ -501,55 +527,33 @@ Response: {"ok": true/false, "bedrock_status": "ACTIVE|UNAVAILABLE"}
 
 ---
 
-## � Documentation Files (NEW - Phase 5)
+## 📄 Integration Guides (for Teammates)
 
-Three comprehensive JSON schema files for team coordination:
+Three comprehensive guides in the `Integration_Guides/` folder:
 
-### 1. **API_SCHEMA.json** - For Cybersecurity & Backend Teams
-- Complete endpoint definitions (all 10 endpoints)
-- Exact JSON keys with data types for deterministic hashing
-- Request/response structure with examples
-- Database schema reference
-- **Use Case**: Cryptographic verification, API contract enforcement
+### 1. **INTEGRATE_FRONTEND.md** - For Frontend Team
+- iframe embed code (React / Next.js / plain HTML examples)
+- URL parameters: `?patient_id=X&doctor_id=Y`
+- All endpoint URLs and expected responses
+- Server setup instructions
 
-### 2. **FRONTEND_DATAFLOW.json** - For Frontend & Integration Teams
-- Step-by-step workflow with field mappings
-- Which API fields map to which UI elements
-- Frontend state object structure
-- Data extraction at each stage
-- **Use Case**: UI implementation reference, data flow documentation
+### 2. **INTEGRATE_DATABASE.md** - For Database Team
+- 4 CREATE TABLE statements (prescriptions, medicines, prescription_medicines, lab_reports)
+- Connection config via environment variables
+- Sample queries and data flow diagrams
+- RDS migration guide
 
-### 3. **DATABASE_SCHEMA.json** - For Database & Data Teams
-- Complete prescriptions/medicines schema (implemented)
-- **NEW**: lab_reports table structure with lab values JSON format
-  ```json
-  {
-    "test_results": [
-      {
-        "test_name": "Hemoglobin",
-        "value": 13.5,
-        "unit": "g/dL",
-        "normal_range": {"min": 12, "max": 16},
-        "status": "NORMAL"
-      }
-    ],
-    "critical_flags": [
-      {
-        "test_name": "Blood Glucose",
-        "severity": "WARNING",
-        "reason": "Elevated - may indicate diabetes"
-      }
-    ]
-  }
-  ```
-- Migration SQL and index creation
-- **Use Case**: Database design, lab report integration planning
+### 3. **INTEGRATE_CYBERSECURITY.md** - For Security Team
+- Full JSON structure for all 11 endpoints
+- Hashing guidelines with Python examples
+- Auth middleware code samples
+- PHI field classification, rate limiting, audit logging
 
 ---
 
-## 🧪 Lab Reports Support (Schema Ready - Phase 6 Ready)
+## 🧪 Lab Reports Support (Phase 6 - Implemented)
 
-New lab_reports table structure documented in DATABASE_SCHEMA.json:
+Lab report upload, S3 storage, and database persistence are fully working.
 
 ### lab_reports Table Columns
 | Column | Type | Purpose |
@@ -598,7 +602,9 @@ New lab_reports table structure documented in DATABASE_SCHEMA.json:
 }
 ```
 
-**Future Endpoint**: `POST /ai/process-lab-report` (to be implemented)
+**Current Endpoint**: `POST /ai/save-lab-report` — saves file to S3 and metadata to MySQL.
+
+**Future Enhancement**: `POST /ai/process-lab-report` — OCR extraction + AI analysis of lab values.
 - Input: Patient ID + lab report image + test date
 - Output: Structured lab values + critical flags + extracted conditions
 - Integration: Same AI pipeline as prescriptions (Bedrock + Textract)
@@ -710,41 +716,38 @@ curl http://localhost:5000/ai/tts -X POST \
 
 ```
 MediVault/
-├── API_SCHEMA.json                     # Endpoint definitions + keys (cybersecurity)
-├── FRONTEND_DATAFLOW.json              # UI data flow + field mappings
-├── DATABASE_SCHEMA.json                # DB schema + lab reports structure
-├── backend/
-│   ├── app.py                          # Flask REST API (10 endpoints)
-│   ├── config.py                       # Feature flags & config
-│   ├── requirements.txt                # Python dependencies
-│   ├── services/
-│   │   ├── bedrock_service.py         # LLM normalization & extraction
-│   │   ├── textract_service.py        # OCR with block geometry
-│   │   ├── kb_rag_service.py          # Drug interaction checking with RAG
-│   │   ├── polly_service.py           # Text-to-speech synthesis
-│   │   └── db_service.py              # MySQL database management (NEW)
-│   └── utils/
-│       ├── dosage_parser.py           # Indian pharmaceutical parsing
-│       ├── comprehend_medical_service.py # Optional entity extraction
-│       ├── fhir_bundle_generator.py   # FHIR 4.0 export
-│       └── schema.py                  # Data schemas
-├── frontend/
-│   ├── index.html                      # Single-page app (glassmorphism)
-│   ├── app.js                          # Vanilla JavaScript (Phase 5 redesign)
-│   └── styles/ (inline CSS in index.html)
-├── tests/
-│   ├── test_ai_flow.py                # End-to-end tests
-│   ├── test_endpoint.py               # Endpoint validation
-│   ├── test_bedrock_fix.py            # Bedrock integration
-│   ├── test_ocr_extraction.py         # OCR tests
-│   ├── test_fixed_endpoints.py        # API parameter tests
-│   └── ... (more test files)
-└── Design & Documentation
-    ├── design.md                       # Original requirements
-    ├── requirements.md                 # Functional requirements
-    ├── README.md                       # User guide
-    ├── AI_ReadMe.md                    # This file
-    └── PROJECT_STATUS.md               # Development status
+├── AI/
+│   ├── AI_ReadMe.md                    # This file
+│   ├── backend/
+│   │   ├── app.py                      # Flask REST API (11 endpoints)
+│   │   ├── config.py                   # Feature flags & config
+│   │   ├── requirements.txt            # Python dependencies
+│   │   ├── services/
+│   │   │   ├── bedrock_service.py      # LLM normalization & extraction
+│   │   │   ├── textract_service.py     # OCR with block geometry
+│   │   │   ├── kb_rag_service.py       # Drug interaction checking with RAG
+│   │   │   ├── polly_service.py        # Text-to-speech synthesis
+│   │   │   ├── s3_service.py           # S3 file upload (lab reports)
+│   │   │   └── db_service.py           # MySQL database management
+│   │   └── utils/
+│   │       ├── dosage_parser.py        # Indian pharmaceutical parsing
+│   │       ├── comprehend_medical_service.py # Optional entity extraction
+│   │       ├── fhir_bundle_generator.py # FHIR 4.0 export
+│   │       └── schema.py              # Data schemas
+│   ├── frontend/
+│   │   ├── index.html                  # Single-page app (glassmorphism)
+│   │   └── app.js                      # Vanilla JavaScript (Phase 5 redesign)
+│   └── tests/
+│       ├── test_ai_flow.py             # End-to-end tests
+│       ├── test_endpoint.py            # Endpoint validation
+│       └── ... (more test files)
+├── Integration_Guides/
+│   ├── INTEGRATE_FRONTEND.md           # iframe embed guide for frontend team
+│   ├── INTEGRATE_DATABASE.md           # MySQL schema + queries for DB team
+│   └── INTEGRATE_CYBERSECURITY.md      # JSON contract + hashing for security team
+├── design.md                           # Original requirements
+├── requirements.md                     # Functional requirements
+└── README.md                           # User guide
 ```
 
 ---
@@ -825,12 +828,13 @@ MediVault/
 - [x] ✅ **Optional interaction checking (manual button)**
 - [x] ✅ **Toast notification system**
 - [x] ✅ **Comprehensive documentation for all teams:**
-  - [x] API_SCHEMA.json (for cybersecurity)
-  - [x] FRONTEND_DATAFLOW.json (for frontend team)
-  - [x] DATABASE_SCHEMA.json (for database team + lab reports)
-- [x] ✅ **Lab reports schema (ready for Phase 6 implementation)**
+  - [x] INTEGRATE_CYBERSECURITY.md (for cybersecurity)
+  - [x] INTEGRATE_FRONTEND.md (for frontend team)
+  - [x] INTEGRATE_DATABASE.md (for database team)
+- [x] ✅ **Lab reports upload + S3 storage + database persistence (Phase 6)**
+- [x] ✅ **Lab Reports sidebar panel with drag-and-drop upload**
 
-**Status**: 🟢 PRODUCTION READY - Phase 5 Complete + Documentation Complete
+**Status**: 🟢 PRODUCTION READY - Phase 6 Complete (Lab Reports)
 
 ---
 
@@ -841,7 +845,7 @@ MediVault/
 | 1-3 | 8 AI Design Tasks | ✅ Complete |
 | 4 | Database Persistence | ✅ Complete |
 | 5 | UI/UX Redesign + Docs | ✅ Complete |
-| 6 | Lab Reports Support | 📋 Planned (schema ready) |
+| 6 | Lab Reports Upload | ✅ Complete |
 | 7 | Provider Integration | 📋 Planned |
 | 8 | Mobile App | 📋 Planned |
 
@@ -853,7 +857,7 @@ MediVault/
 - All Indian pharmaceutical abbreviations are supported (OD, BD, TDS, 1-0-1, etc.)
 - Medication extraction includes comprehensive dosage schedule fields with uncertainty tracking
 - Drug interactions use Knowledge Base RAG for evidence-based recommendations with citations
-- Text-to-speech supports regional languages through Polly (Joanna, Matthew, Raveesh, Aditi)
+- Text-to-speech supports regional languages through Polly (Joanna, Matthew, Raveena, Aditi)
 - FHIR export enables integration with hospital information systems
 - Emergency bundle designed for QR code accessibility
 
@@ -868,14 +872,17 @@ MediVault/
 - Complete frontend redesign with warm amber/orange/brown gradients
 - New glassmorphism design with 72px sidebar + top bar + progress indicator
 - File confirmation card + optional interaction checking + toast notifications
-- Comprehensive documentation (3 JSON schema files) for teams:
-  - **API_SCHEMA.json**: For cryptographic verification and API contracts
-  - **FRONTEND_DATAFLOW.json**: For UI implementation reference
-  - **DATABASE_SCHEMA.json**: For database design + future lab reports support
-- Lab reports schema documented and ready for Phase 6 implementation
+- Integration guides for all 3 teammates (in `Integration_Guides/` folder)
+
+**Phase 6 (Lab Reports):**
+- Lab reports sidebar panel with drag-and-drop file upload
+- S3 upload to `medivault-lab-reports` bucket
+- `lab_reports` MySQL table with full schema
+- `POST /ai/save-lab-report` endpoint
+- Supports 8 report types: Blood, Urine, Thyroid, Lipid, Liver, Kidney, Imaging, Other
 
 ---
 
-**Last Updated**: March 1, 2026 (Phase 5 Complete - UI Redesign + Documentation)
-**Version**: 2.1 - UI Redesign + Team Documentation Release
-**Status**: ✅ Complete & Production Ready with Full Data Persistence + Comprehensive Documentation
+**Last Updated**: March 1, 2026 (Phase 6 Complete - Lab Reports)
+**Version**: 2.2 - Lab Reports + Integration Guides
+**Status**: ✅ Complete & Production Ready with Full Data Persistence + Lab Reports + Integration Guides

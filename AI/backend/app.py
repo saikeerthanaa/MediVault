@@ -21,8 +21,22 @@ def create_app():
     app = Flask(__name__, static_folder='../frontend', static_url_path='/static')
     app.config.from_object(Config)
     
-    # Enable CORS for API endpoints
-    CORS(app, resources={r"/ai/*": {"origins": ["http://localhost:5000", "http://localhost:3000", "http://127.0.0.1:5000", "http://127.0.0.1:3000"]}})
+    # Enable CORS for API endpoints - allow main frontend to embed via iframe
+    CORS(app, resources={r"/ai/*": {"origins": [
+        "http://localhost:5000",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:5000",
+        "http://127.0.0.1:3000",
+        "*"  # Allow all during development — restrict in production
+    ]}})
+
+    # Allow iframe embedding from main frontend
+    @app.after_request
+    def add_headers(response):
+        response.headers['X-Frame-Options'] = 'ALLOWALL'
+        response.headers['Content-Security-Policy'] = "frame-ancestors *"
+        return response
 
     textract = TextractService(app.config["AWS_REGION"])
     bedrock = BedrockService(app.config["AWS_REGION"], app.config["BEDROCK_MODEL_ID"])
@@ -152,8 +166,10 @@ def create_app():
         """
         Input JSON:
         { "text": "...", "voice_id": "Aditi" }
-        Returns audio/mp3 bytes.
+        Returns JSON with audio as data URL.
         """
+        import base64
+        
         data = request.get_json(silent=True) or {}
         text = (data.get("text") or "").strip()
         voice_id = (data.get("voice_id") or app.config["POLLY_VOICE_ID"]).strip()
@@ -165,7 +181,15 @@ def create_app():
         if not out.get("ok"):
             return jsonify(out), 500
 
-        return Response(out["audio_bytes"], mimetype="audio/mpeg")
+        # Encode audio bytes as base64 data URL for frontend
+        audio_b64 = base64.b64encode(out["audio_bytes"]).decode('utf-8')
+        audio_url = f"data:audio/mpeg;base64,{audio_b64}"
+        
+        return jsonify({
+            "ok": True,
+            "audio_url": audio_url,
+            "voice_id": voice_id
+        })
 
     # 5) Emergency Summary - Quick access to critical patient info
     @app.post("/ai/emergency-summary")

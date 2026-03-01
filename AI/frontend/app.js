@@ -38,6 +38,8 @@ const elements = {
     uploadPreview: document.getElementById('upload-preview'),
     confidenceScore: document.getElementById('confidence-score'),
     textPreview: document.getElementById('text-preview'),
+    btnEditText: document.getElementById('btn-edit-text'),
+    textPreviewEditable: document.getElementById('text-preview-editable'),
     errorUpload: document.getElementById('error-upload'),
     
     // Step 2: Extract
@@ -64,7 +66,7 @@ const elements = {
     // Step 4: Voice
     voiceSelect: document.getElementById('voice-select'),
     btnGenerateAudio: document.getElementById('btn-generate-audio'),
-    btnSkipVoice: document.getElementById('btn-skip-voice'),
+    btnContinueVoice: document.getElementById('btn-continue-voice'),
     ttsLoading: document.getElementById('tts-loading'),
     voicePreview: document.getElementById('voice-preview'),
     summaryText: document.getElementById('summary-text'),
@@ -290,6 +292,27 @@ function initUploadStep() {
     // Extract button
     elements.btnExtractText.addEventListener('click', handleExtractText);
     
+    // Edit button in upload preview
+    elements.btnEditText.addEventListener('click', () => {
+        const isEditing = elements.textPreview.style.display === 'none';
+        
+        if (!isEditing) {
+            // Switch to edit mode
+            elements.textPreviewEditable.value = state.rawText;
+            elements.textPreview.style.display = 'none';
+            elements.textPreviewEditable.style.display = 'block';
+            elements.btnEditText.textContent = '✓ Done Editing';
+            elements.textPreviewEditable.focus();
+        } else {
+            // Switch back to view mode
+            state.rawText = elements.textPreviewEditable.value; // Save the edited text
+            elements.textPreview.textContent = state.rawText;
+            elements.textPreview.style.display = 'block';
+            elements.textPreviewEditable.style.display = 'none';
+            elements.btnEditText.textContent = '✏️ Edit';
+        }
+    });
+    
     // Continue to Normalize button
     elements.btnContinueExtract.addEventListener('click', () => {
         setCurrentStep('extract');
@@ -500,7 +523,7 @@ async function autoCheckInteractions() {
 // ===== STEP 4: VOICE (Optional with Skip button) =====
 function initVoiceStep() {
     elements.btnGenerateAudio.addEventListener('click', handleGenerateAudio);
-    elements.btnSkipVoice.addEventListener('click', showSuccessScreen); // CHANGE 3: Skip button
+    elements.btnContinueVoice.addEventListener('click', showSuccessScreen);
 }
 
 async function handleGenerateAudio() {
@@ -526,24 +549,11 @@ async function handleGenerateAudio() {
             voice_id: voice,
         });
         
-        if (result.audio_url || result.audio) {
-            const audioData = result.audio_url ? result.audio : result.audio;
-            
-            // Create blob and play
-            if (typeof audioData === 'string' && audioData.startsWith('data:')) {
-                const arr = audioData.split(',');
-                const bstr = atob(arr[1]);
-                const n = bstr.length;
-                const u8arr = new Uint8Array(n);
-                for (let i = 0; i < n; i++) {
-                    u8arr[i] = bstr.charCodeAt(i);
-                }
-                const blob = new Blob([u8arr], { type: 'audio/mpeg' });
-                const audioUrl = URL.createObjectURL(blob);
-                elements.audioPlayer.src = audioUrl;
-                elements.audioPlayer.style.display = 'block';
-                state.audioBlob = blob;
-            }
+        if (result.audio_url) {
+            // Set the audio player source directly from data URL
+            elements.audioPlayer.src = result.audio_url;
+            elements.audioPlayer.style.display = 'block';
+            state.audioBlob = result.audio_url;
         }
         
         elements.voicePreview.style.display = 'block';
