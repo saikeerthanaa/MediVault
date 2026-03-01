@@ -336,7 +336,9 @@ async function handleNormalizeExtract() {
     try {
         // Call normalize endpoint
         const result = await apiCall('/ai/normalize-and-extract', 'POST', {
-            text: text,
+            reviewed_text: text,
+            patient_verified: true,
+            ocr_confidence: state.ocrConfidence,
         });
         
         state.extractedEntities = result;
@@ -403,9 +405,33 @@ async function autoCheckInteractions() {
     }
     
     try {
-        const result = await apiCall('/ai/check-interaction', 'POST', {
-            medications: state.extractedEntities.medications,
-        });
+        // Check all medication pairs for interactions
+        const meds = state.extractedEntities.medications || [];
+        if (meds.length < 2) {
+            // If only 1 med or less, no interactions to check
+            elements.interactLoading.style.display = 'none';
+            elements.interactPreview.style.display = 'block';
+            elements.interactionsList.innerHTML = '<p style="color: #34d399; text-align: center;">✓ No interaction check needed (< 2 medications)</p>';
+            return;
+        }
+        
+        // Check each pairing
+        let allInteractions = [];
+        for (let i = 0; i < meds.length; i++) {
+            for (let j = i + 1; j < meds.length; j++) {
+                const med1 = typeof meds[i] === 'object' ? meds[i].name : meds[i];
+                const med2 = typeof meds[j] === 'object' ? meds[j].name : meds[j];
+                const result = await apiCall('/ai/check-interaction', 'POST', {
+                    new_med: med1,
+                    current_meds: [med2],
+                });
+                if (result.interactions) {
+                    allInteractions = allInteractions.concat(result.interactions);
+                }
+            }
+        }
+        
+        const result = { interactions: allInteractions };
         
         state.interactionResults = result;
         
@@ -462,7 +488,7 @@ async function handleGenerateAudio() {
         // Call TTS endpoint
         const result = await apiCall('/ai/tts', 'POST', {
             text: summaryContent,
-            voice: voice,
+            voice_id: voice,
         });
         
         if (result.audio_url || result.audio) {
