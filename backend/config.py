@@ -22,3 +22,11 @@ class Config:
     
     # Block-level OCR (for HITL highlighting)
     TEXTRACT_RETURN_BLOCKS = True  # Always return blocks for frontend rendering
+
+    # MySQL Configuration for prescription storage
+    MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+    MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+    MYSQL_USER = os.getenv("MYSQL_USER", "medivault_user")
+    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "medivault_password")
+    MYSQL_DB = os.getenv("MYSQL_DB", "medivault_db")
+

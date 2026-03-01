@@ -1,5 +1,7 @@
 import io
 import os
+import json
+from datetime import datetime
 from flask import Flask, request, jsonify, Response, send_file, send_from_directory
 from flask_cors import CORS
 from config import Config
@@ -8,6 +10,7 @@ from services.textract_service import TextractService
 from services.bedrock_service import BedrockService, test_bedrock_connection
 from services.kb_rag_service import KBRagService
 from services.polly_service import PollyService
+from services.db_service import DatabaseService
 from utils.fhir_bundle_generator import FHIRBundleGenerator
 from utils.dosage_parser import DosageParser
 from utils.comprehend_medical_service import ComprehendMedicalService
@@ -248,27 +251,144 @@ def create_app():
             "short_text": short_text.strip()
         })
 
-    # 6) FHIR Export - Convert entities to FHIR Bundle
-    @app.post("/ai/to-fhir")
-    def to_fhir():
+    # 7) Save Prescription - HITL Confirmed Prescription to Database
+    @app.post("/ai/save-prescription")
+    def save_prescription():
         """
+        Save a patient-confirmed prescription to database with auto interaction checking and FHIR generation.
+        
         Input JSON:
         {
-          "medications": [...],
-          "conditions": [...],
-          "allergies": [...],
-          "patient_id": "..." (optional, defaults to "patient-unidentified")
+          "patient_id": 1,
+          "doctor_id": 2,
+          "s3_image_url": "https://...",
+          "ocr_confidence": 0.87,
+          "reviewed_text": "...",
+          "entities": {
+            "medications": [
+              { "name": "Ibuprofen", "dosage": "200mg", "frequency": "Twice daily", "duration": "7 days" }
+            ],
+            "conditions": [],
+            "allergies": []
+          }
         }
         
-        Output: FHIR Bundle JSON (4.0)
+        Process:
+        1. Save to MySQL (prescriptions, medicines, prescription_medicines) in transaction
+        2. Auto drug interaction check (all pairs)
+        3. Generate FHIR bundle and update prescription
+        
+        Output:
+        {
+          "ok": true,
+          "prescription_id": 42,
+          "medicines_saved": 2,
+          "interactions": [...],
+          "fhir_bundle_saved": true,
+          "warnings": []
+        }
         """
         data = request.get_json(silent=True) or {}
         
-        patient_id = data.get("patient_id", "patient-unidentified")
-        medications = data.get("medications") or []
-        conditions = data.get("conditions") or []
-        allergies = data.get("allergies") or []
+        # Validate required fields
+        required = ["patient_id", "doctor_id", "s3_image_url", "entities"]
+        for field in required:
+            if field not in data:
+                return jsonify({
+                    "ok": False,
+                    "error": f"Missing required field: {field}"
+                }), 400
         
+        patient_id = data.get("patient_id")
+        doctor_id = data.get("doctor_id")
+        s3_image_url = data.get("s3_image_url")
+        entities = data.get("entities", {})
+        medications = entities.get("medications", [])
+        conditions = entities.get("conditions", [])
+        allergies = entities.get("allergies", [])
+        
+        warnings = []
+        
+        # STEP 1: Save to MySQL database
+        try:
+            prescribed_date = datetime.now().strftime("%Y-%m-%d")
+            
+            prescription_id, medicines_count, db_error = DatabaseService.save_prescription(
+                patient_id=patient_id,
+                doctor_id=doctor_id,
+                s3_image_url=s3_image_url,
+                prescribed_date=prescribed_date,
+                medications=medications,
+                fhir_json=None  # Will be updated in step 3
+            )
+            
+            if db_error:
+                return jsonify({
+                    "ok": False,
+                    "error": f"Database error: {db_error}"
+                }), 500
+            
+            if app.config["DEBUG_AI"]:
+                print(f"✓ Saved prescription {prescription_id} with {medicines_count} medicines")
+            
+        except Exception as e:
+            return jsonify({
+                "ok": False,
+                "error": f"Failed to save prescription: {str(e)}"
+            }), 500
+        
+        # STEP 2: Auto drug interaction check (after successful DB write)
+        interactions = []
+        try:
+            if len(medications) > 1:
+                med_names = [med.get("name", "").strip() for med in medications if med.get("name")]
+                
+                # Check all pairs
+                interactions_set = set()
+                
+                for i, med1 in enumerate(med_names):
+                    # Check med1 against all others
+                    other_meds = med_names[:i] + med_names[i+1:]
+                    
+                    try:
+                        result = kb_rag.check_interaction(med1, other_meds)
+                        
+                        if result.get("ok") and result.get("interactions"):
+                            for interaction in result.get("interactions", []):
+                                severity = interaction.get("severity", "unknown")
+                                
+                                # Only include high/medium severity
+                                if severity in ["high", "medium"]:
+                                    # De-duplicate: create canonical pair
+                                    pair = tuple(sorted([med1, interaction.get("medication", "")]))
+                                    pair_key = "|".join(pair)
+                                    
+                                    if pair_key not in interactions_set:
+                                        interactions_set.add(pair_key)
+                                        interactions.append({
+                                            "pair": list(pair),
+                                            "severity": severity,
+                                            "summary": interaction.get("summary", "Interaction detected"),
+                                            "description": interaction.get("description", ""),
+                                            "action": interaction.get("action", "")
+                                        })
+                    except Exception as e:
+                        warn = f"Interaction check failed for {med1}: {str(e)}"
+                        warnings.append(warn)
+                        if app.config["DEBUG_AI"]:
+                            print(f"⚠ {warn}")
+            
+            if app.config["DEBUG_AI"] and interactions:
+                print(f"✓ Found {len(interactions)} significant drug interactions")
+        
+        except Exception as e:
+            warn = f"Drug interaction check failed: {str(e)}"
+            warnings.append(warn)
+            if app.config["DEBUG_AI"]:
+                print(f"⚠ {warn}")
+        
+        # STEP 3: Generate FHIR bundle and update prescription
+        fhir_bundle_saved = False
         try:
             bundle = FHIRBundleGenerator.create_bundle(
                 entities={
@@ -276,22 +396,44 @@ def create_app():
                     "conditions": conditions,
                     "allergies": allergies
                 },
-                patient_id=patient_id
+                patient_id=str(patient_id)
             )
             
             bundle_json = FHIRBundleGenerator.bundle_to_json(bundle)
             
-            return jsonify({
-                "ok": True,
-                "bundle": bundle_json
-            })
+            success, fhir_error = DatabaseService.update_prescription_fhir(
+                prescription_id=prescription_id,
+                fhir_json=bundle_json
+            )
+            
+            if success:
+                fhir_bundle_saved = True
+                if app.config["DEBUG_AI"]:
+                    print(f"✓ FHIR bundle generated and saved for prescription {prescription_id}")
+            else:
+                warn = f"Failed to save FHIR bundle: {fhir_error}"
+                warnings.append(warn)
+                if app.config["DEBUG_AI"]:
+                    print(f"⚠ {warn}")
+        
         except Exception as e:
-            return jsonify({
-                "ok": False,
-                "error": f"Failed to generate FHIR Bundle: {str(e)}"
-            }), 500
+            warn = f"FHIR generation failed: {str(e)}"
+            warnings.append(warn)
+            if app.config["DEBUG_AI"]:
+                print(f"⚠ {warn}")
+        
+        # Return combined response
+        return jsonify({
+            "ok": True,
+            "prescription_id": prescription_id,
+            "medicines_saved": medicines_count,
+            "interactions": interactions,
+            "fhir_bundle_saved": fhir_bundle_saved,
+            "warnings": warnings
+        })
 
     # Global error handlers - return JSON instead of HTML
+
     @app.errorhandler(404)
     def not_found(e):
         return jsonify({"ok": False, "error": "Endpoint not found"}), 404
