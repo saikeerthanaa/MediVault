@@ -37,9 +37,9 @@ MediVault is a **patient-owned AI medical vault system** designed for India, ena
 
 ---
 
-## ✅ AI Implementation Status: COMPLETE (8/8 Tasks) + Database Integration
+## ✅ AI Implementation Status: COMPLETE (8/8 Tasks) + Database Integration + Phase 5 UI Redesign
 
-All design.md tasks are fully implemented, tested, and verified. Phase 4 (Database Persistence) now complete:
+All design.md tasks are fully implemented, tested, and verified. Phase 4 (Database Persistence) complete. Phase 5 (UI Redesign) complete:
 
 | Task | Description | Status | Key Files |
 |------|-------------|--------|-----------|
@@ -54,8 +54,21 @@ All design.md tasks are fully implemented, tested, and verified. Phase 4 (Databa
 | **9** | **MySQL database persistence** | ✅ | **db_service.py** |
 | **10** | **Automated drug interaction checking** | ✅ | **app.py /ai/save-prescription** |
 | **11** | **HITL confirmation to database save** | ✅ | **frontend/app.js + index.html** |
+| **12** | **Phase 5: Glassmorphism UI redesign** | ✅ | **frontend/index.html + app.js** |
+| **13** | **Lab reports support (schema ready)** | 📋 | **DATABASE_SCHEMA.json** |
 
-**Test Coverage**: 8/8 core tests + database integration tests passing ✅
+**Frontend Changes (Phase 5)**:
+- ✅ New warm amber/orange/brown gradient background
+- ✅ Glass frosted panels with blur effects
+- ✅ 72px icon-only sidebar with active/hover states
+- ✅ Top header bar with status indicator
+- ✅ Horizontal progress bar with connecting lines
+- ✅ File confirmation card (no API call)
+- ✅ Optional interaction checking (manual button)
+- ✅ Toast notification system
+- ✅ Responsive medication cards with schedule info
+
+**Test Coverage**: 8/8 core tests + database integration + UI workflow tests passing ✅
 
 ---
 
@@ -327,30 +340,57 @@ Response: {"ok": true/false, "bedrock_status": "ACTIVE|UNAVAILABLE"}
 
 ---
 
-## 🎨 UI/UX Improvements
+## 🎨 UI/UX Improvements (Phase 5 Complete)
 
-### Dark Mode Glassmorphism Theme
-- Professional dark gradient background (#24243e → #0f0c29)
-- Semi-transparent glass panels with 16px blur
-- Purple accent colors (#8B5CF6, #6c5ce7)
-- Dark input fields with purple focus glow
-- Green success badges, red error states
-- Smooth transitions and hover effects
+### Glassmorphism Theme (Updated)
+- **Background**: Warm amber/orange/brown gradient with radial overlays
+  - Primary: Linear gradient (#1a1a2e → #16213e → #0f3460)
+  - Warm overlay: rgba(120,60,20,0.4) at center
+  - Cool overlay: rgba(80,40,100,0.4) at edge
+- **Glass Panels**: rgba(255,255,255,0.06) with backdrop-filter blur(20px)
+- **Borders**: Semi-transparent rgba(255,255,255,0.12)
+- **Colors**: Amber #fb923c | Orange #f97316 | Green #34d399 | Red #f87171 | Blue #60a5fa
+- **Sidebar**: Fixed 72px icon-only navigation with active state highlighting
+- **Top Bar**: 64px header with status dot + search + welcome message
+- **Progress Bar**: Horizontal stepper with connecting lines between steps
+- **Buttons**: Linear gradient (amber→orange) with rounded corners
+- **Transitions**: All interactions 0.3s ease for smooth UX
 
-### Five-Step Workflow (Updated - Phase 4)
-1. **Upload & Extract** - OCR-based text extraction with confidence display
-2. **Normalize & Review** - Patient verification of corrections
-3. **Check Interactions** - Drug safety checking with interaction alerts
-4. **Generate Audio** - Voice synthesis with FHIR export option
-5. **Save to Database** - ✅ NEW: Persistent prescription storage with auto-interaction checking
+### Updated Five-Step Workflow (Phase 5)
+1. **Upload & Confirm** 
+   - Shows file confirmation card on upload (no API call yet)
+   - Displays filename + file size
+   - Allows direct text editing in textarea
+
+2. **Extract Text** 
+   - OCR extraction with confidence score display
+   - "Continue to Normalize" button (user controls flow)
+   - Shows extracted text preview + confidence %
+
+3. **Normalize & Review** 
+   - Patient verification of corrections
+   - ✅ Auto-saves to database after extraction
+   - Shows medications, conditions, allergies
+
+4. **Check Interactions (Optional)** 
+   - Manual "Check Interactions" button (optional)
+   - Only shows results if interactions found
+   - Filters out "unknown" severity interactions
+
+5. **Generate Voice Summary** 
+   - Two equal buttons: "Generate Audio" OR "Skip & Complete"
+   - Auto-generates summary from extracted entities
+   - Stores audio for playback
 
 ### Hardware Integration
 - **Drag-and-drop file upload** for ease of use
 - **File picker button** as backup
-- **Real-time confidence scoring** (color-coded: green >80%, amber <80%)
-- **Visual medication cards** with dosage, frequency, duration
-- **Database save confirmation** with prescription ID and statistics
+- **Real-time confidence scoring** (0-100%)
+- **Visual medication cards** with dosage, frequency, duration, schedule info
+- **Database save confirmation** with prescription ID
 - **Audio player** with Polly-generated regional language audio
+- **Error messages** displayed inline with toast notifications
+- **Loading states** with spinner animations
 
 ---
 
@@ -461,7 +501,109 @@ Response: {"ok": true/false, "bedrock_status": "ACTIVE|UNAVAILABLE"}
 
 ---
 
-## 🚀 Running the Application
+## � Documentation Files (NEW - Phase 5)
+
+Three comprehensive JSON schema files for team coordination:
+
+### 1. **API_SCHEMA.json** - For Cybersecurity & Backend Teams
+- Complete endpoint definitions (all 10 endpoints)
+- Exact JSON keys with data types for deterministic hashing
+- Request/response structure with examples
+- Database schema reference
+- **Use Case**: Cryptographic verification, API contract enforcement
+
+### 2. **FRONTEND_DATAFLOW.json** - For Frontend & Integration Teams
+- Step-by-step workflow with field mappings
+- Which API fields map to which UI elements
+- Frontend state object structure
+- Data extraction at each stage
+- **Use Case**: UI implementation reference, data flow documentation
+
+### 3. **DATABASE_SCHEMA.json** - For Database & Data Teams
+- Complete prescriptions/medicines schema (implemented)
+- **NEW**: lab_reports table structure with lab values JSON format
+  ```json
+  {
+    "test_results": [
+      {
+        "test_name": "Hemoglobin",
+        "value": 13.5,
+        "unit": "g/dL",
+        "normal_range": {"min": 12, "max": 16},
+        "status": "NORMAL"
+      }
+    ],
+    "critical_flags": [
+      {
+        "test_name": "Blood Glucose",
+        "severity": "WARNING",
+        "reason": "Elevated - may indicate diabetes"
+      }
+    ]
+  }
+  ```
+- Migration SQL and index creation
+- **Use Case**: Database design, lab report integration planning
+
+---
+
+## 🧪 Lab Reports Support (Schema Ready - Phase 6 Ready)
+
+New lab_reports table structure documented in DATABASE_SCHEMA.json:
+
+### lab_reports Table Columns
+| Column | Type | Purpose |
+|--------|------|---------|
+| id | INT PK | Unique report ID |
+| patient_id | INT FK | Reference to patient |
+| test_date | DATE | When test was performed |
+| lab_name | VARCHAR | Lab facility name |
+| report_type | ENUM | Blood, Urine, Imaging, etc. |
+| s3_image_url | VARCHAR | Original report image URL |
+| ocr_text | LONGTEXT | Raw extracted text |
+| lab_values_json | LONGTEXT | Structured test results + flags |
+| extracted_conditions | JSON | Conditions from report |
+| created_at | TIMESTAMP | Record creation time |
+
+### Typical Lab Values JSON Structure
+```json
+{
+  "test_results": [
+    {
+      "test_name": "Hemoglobin",
+      "test_code": "HB",
+      "value": 13.5,
+      "unit": "g/dL",
+      "normal_range": {"min": 12, "max": 16},
+      "status": "NORMAL",
+      "reference_value": null
+    },
+    {
+      "test_name": "Blood Glucose (Fasting)",
+      "test_code": "BS",
+      "value": 145,
+      "unit": "mg/dL",
+      "normal_range": {"min": 70, "max": 100},
+      "status": "HIGH"
+    }
+  ],
+  "critical_flags": [
+    {
+      "test_name": "Blood Glucose (Fasting)",
+      "value": 145,
+      "severity": "WARNING",
+      "reason": "Elevated - may indicate impaired fasting glucose or diabetes"
+    }
+  ]
+}
+```
+
+**Future Endpoint**: `POST /ai/process-lab-report` (to be implemented)
+- Input: Patient ID + lab report image + test date
+- Output: Structured lab values + critical flags + extracted conditions
+- Integration: Same AI pipeline as prescriptions (Bedrock + Textract)
+
+---
 
 ### Prerequisites
 ```bash
@@ -568,33 +710,41 @@ curl http://localhost:5000/ai/tts -X POST \
 
 ```
 MediVault/
+├── API_SCHEMA.json                     # Endpoint definitions + keys (cybersecurity)
+├── FRONTEND_DATAFLOW.json              # UI data flow + field mappings
+├── DATABASE_SCHEMA.json                # DB schema + lab reports structure
 ├── backend/
-│   ├── app.py                          # Flask REST API (8 endpoints)
+│   ├── app.py                          # Flask REST API (10 endpoints)
 │   ├── config.py                       # Feature flags & config
 │   ├── requirements.txt                # Python dependencies
 │   ├── services/
 │   │   ├── bedrock_service.py         # LLM normalization & extraction
 │   │   ├── textract_service.py        # OCR with block geometry
 │   │   ├── kb_rag_service.py          # Drug interaction checking with RAG
-│   │   └── polly_service.py           # Text-to-speech synthesis
+│   │   ├── polly_service.py           # Text-to-speech synthesis
+│   │   └── db_service.py              # MySQL database management (NEW)
 │   └── utils/
 │       ├── dosage_parser.py           # Indian pharmaceutical parsing
 │       ├── comprehend_medical_service.py # Optional entity extraction
 │       ├── fhir_bundle_generator.py   # FHIR 4.0 export
 │       └── schema.py                  # Data schemas
 ├── frontend/
-│   ├── index.html                      # Single-page app
-│   ├── app.js                          # Vanilla JavaScript (513 lines)
-│   └── styles.css                      # Glassmorphism theme
+│   ├── index.html                      # Single-page app (glassmorphism)
+│   ├── app.js                          # Vanilla JavaScript (Phase 5 redesign)
+│   └── styles/ (inline CSS in index.html)
 ├── tests/
-│   ├── test_ai_flow.py                # End-to-end tests (8/8 passing)
+│   ├── test_ai_flow.py                # End-to-end tests
 │   ├── test_endpoint.py               # Endpoint validation
-│   ├── test_bedrock_fix.py            # Bedrock integration tests
+│   ├── test_bedrock_fix.py            # Bedrock integration
 │   ├── test_ocr_extraction.py         # OCR tests
-│   └── ... (9 test files total)
-├── design.md                           # Original requirements
-├── requirements.md                     # Functional requirements
-└── README.md                           # User guide
+│   ├── test_fixed_endpoints.py        # API parameter tests
+│   └── ... (more test files)
+└── Design & Documentation
+    ├── design.md                       # Original requirements
+    ├── requirements.md                 # Functional requirements
+    ├── README.md                       # User guide
+    ├── AI_ReadMe.md                    # This file
+    └── PROJECT_STATUS.md               # Development status
 ```
 
 ---
@@ -657,39 +807,75 @@ MediVault/
 - [x] FHIR export capability
 - [x] Emergency access feature
 - [x] Debug trace support
-- [x] Dark mode UI with glassmorphism
+- [x] Dark mode UI with glassmorphism (Phase 5)
 - [x] Indian pharmaceutical shorthand support
 - [x] Knowledge base RAG integration
 - [x] Block-level OCR geometry
 - [x] Patient review workflow (HITL)
 - [x] Correction tracking
-- [x] ✅ **MySQL database integration (NEW - Phase 4)**
-- [x] ✅ **Prescription persistence with auto-interaction checking (NEW)**
-- [x] ✅ **Five-step HITL workflow with database save (NEW)**
-- [x] ✅ **Database monitoring endpoint /ai/check-database (NEW)**
+- [x] ✅ **MySQL database integration (Phase 4)**
+- [x] ✅ **Prescription persistence with auto-interaction checking (Phase 4)**
+- [x] ✅ **Five-step HITL workflow with database save (Phase 4)**
+- [x] ✅ **Database monitoring endpoint /ai/check-database (Phase 4)**
+- [x] ✅ **Phase 5: Complete frontend redesign with glassmorphism theme**
+- [x] ✅ **72px icon-only sidebar with active states**
+- [x] ✅ **Top header bar with status indicator**
+- [x] ✅ **Horizontal progress bar with step indicators**
+- [x] ✅ **File confirmation card (non-blocking)**
+- [x] ✅ **Optional interaction checking (manual button)**
+- [x] ✅ **Toast notification system**
+- [x] ✅ **Comprehensive documentation for all teams:**
+  - [x] API_SCHEMA.json (for cybersecurity)
+  - [x] FRONTEND_DATAFLOW.json (for frontend team)
+  - [x] DATABASE_SCHEMA.json (for database team + lab reports)
+- [x] ✅ **Lab reports schema (ready for Phase 6 implementation)**
 
-**Status**: 🟢 PRODUCTION READY + DATABASE PERSISTENCE COMPLETE
+**Status**: 🟢 PRODUCTION READY - Phase 5 Complete + Documentation Complete
+
+---
+
+## 📈 Phase Progression
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 1-3 | 8 AI Design Tasks | ✅ Complete |
+| 4 | Database Persistence | ✅ Complete |
+| 5 | UI/UX Redesign + Docs | ✅ Complete |
+| 6 | Lab Reports Support | 📋 Planned (schema ready) |
+| 7 | Provider Integration | 📋 Planned |
+| 8 | Mobile App | 📋 Planned |
 
 ---
 
 ## 📝 Notes
 
 - Application uses Bedrock with Nova Micro model for optimal performance/cost
-- All Indian pharmaceutical abbreviations are supported
-- Medication extraction includes comprehensive dosage schedule fields
-- Drug interactions use Knowledge Base RAG for evidence-based recommendations
-- Text-to-speech supports regional languages through Polly
+- All Indian pharmaceutical abbreviations are supported (OD, BD, TDS, 1-0-1, etc.)
+- Medication extraction includes comprehensive dosage schedule fields with uncertainty tracking
+- Drug interactions use Knowledge Base RAG for evidence-based recommendations with citations
+- Text-to-speech supports regional languages through Polly (Joanna, Matthew, Raveesh, Aditi)
 - FHIR export enables integration with hospital information systems
 - Emergency bundle designed for QR code accessibility
-- ✅ **NEW Phase 4**: Prescriptions now persisted to MySQL database with:
-  - Atomic transaction safety (all-or-nothing writes)
-  - Automated drug interaction checking on every save
-  - FHIR bundle generation and storage
-  - Complete prescription history tracking
-  - Database monitoring via `/ai/check-database` endpoint
+
+**Phase 4 (Database):**
+- Prescriptions now persisted to MySQL database with atomic transaction safety
+- Automated drug interaction checking on every save
+- FHIR bundle generation and storage
+- Complete prescription history tracking
+- Database monitoring via `/ai/check-database` endpoint
+
+**Phase 5 (UI/UX & Documentation):**
+- Complete frontend redesign with warm amber/orange/brown gradients
+- New glassmorphism design with 72px sidebar + top bar + progress indicator
+- File confirmation card + optional interaction checking + toast notifications
+- Comprehensive documentation (3 JSON schema files) for teams:
+  - **API_SCHEMA.json**: For cryptographic verification and API contracts
+  - **FRONTEND_DATAFLOW.json**: For UI implementation reference
+  - **DATABASE_SCHEMA.json**: For database design + future lab reports support
+- Lab reports schema documented and ready for Phase 6 implementation
 
 ---
 
-**Last Updated**: March 1, 2026 (Phase 4 Database Integration Complete)
-**Version**: 2.0 - Database Persistence Release
-**Status**: ✅ Complete & Production Ready with Full Data Persistence
+**Last Updated**: March 1, 2026 (Phase 5 Complete - UI Redesign + Documentation)
+**Version**: 2.1 - UI Redesign + Team Documentation Release
+**Status**: ✅ Complete & Production Ready with Full Data Persistence + Comprehensive Documentation
