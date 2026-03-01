@@ -1,0 +1,846 @@
+import json
+import boto3
+from utils.schema import safe_json_loads
+from utils.dosage_parser import DosageParser, parse_medication_schedule
+from config import Config
+import re
+
+# Try to import rapidfuzz for fuzzy matching, fall back if not available
+try:
+    from rapidfuzz import fuzz
+    RAPIDFUZZ_AVAILABLE = True
+except ImportError:
+    RAPIDFUZZ_AVAILABLE = False
+    print("⚠️ rapidfuzz not installed - using simple pattern matching only")
+
+# Optional: Comprehend Medical for enhanced extraction
+try:
+    from comprehend_medical_service import ComprehendMedicalService
+    COMPREHEND_AVAILABLE = True
+except ImportError:
+    COMPREHEND_AVAILABLE = False
+
+# India brand -> generic medication mapping
+INDIA_BRAND_MAPPING = {
+    "dolo": "Paracetamol",
+    "crocin": "Paracetamol",
+    "metacin": "Paracetamol",
+    "pan": "Pantoprazole",
+    "omez": "Omeprazole",
+    "nexium": "Esomeprazole",
+    "azee": "Azithromycin",
+    "zithromax": "Azithromycin",
+    "ecosprin": "Aspirin",
+    "disprin": "Aspirin",
+    "glycomet": "Metformin",
+    "glucophage": "Metformin",
+    "amaryl": "Glimepiride",
+    "januvia": "Sitagliptin",
+    "galvus": "Vildagliptin",
+    "atorvastatin": "Atorvastatin",
+    "lipitor": "Atorvastatin",
+    "lisinopril": "Lisinopril",
+    "prinivil": "Lisinopril",
+    "losartan": "Losartan",
+    "cozaar": "Losartan",
+    "amlodipine": "Amlodipine",
+    "norvasc": "Amlodipine",
+    "metoprolol": "Metoprolol",
+    "lopressor": "Metoprolol",
+    "atenolol": "Atenolol",
+    "tenormin": "Atenolol",
+    "warfarin": "Warfarin",
+    "coumadin": "Warfarin",
+    "aspirin": "Aspirin",
+    "clopidogrel": "Clopidogrel",
+    "plavix": "Clopidogrel",
+    "ibuprofen": "Ibuprofen",
+    "brufen": "Ibuprofen",
+    "naproxen": "Naproxen",
+    "naprosyn": "Naproxen",
+    "diclofenac": "Diclofenac",
+    "voltaren": "Diclofenac",
+    "amoxicillin": "Amoxicillin",
+    "augmentin": "Amoxicillin/Clavulanic Acid",
+    "penicillin": "Penicillin",
+    "ciprofloxacin": "Ciprofloxacin",
+    "cipro": "Ciprofloxacin",
+    "doxycycline": "Doxycycline",
+    "vibramycin": "Doxycycline",
+    "cephalexin": "Cephalexin",
+    "keflex": "Cephalexin",
+    "erythromycin": "Erythromycin",
+    "levothyroxine": "Levothyroxine",
+    "synthroid": "Levothyroxine",
+    "thyroxine": "Levothyroxine",
+    "fluticasone": "Fluticasone",
+    "advair": "Fluticasone/Salmeterol",
+    "albuterol": "Albuterol",
+    "ventolin": "Albuterol",
+    "salbutamol": "Salbutamol",
+    "salmeterol": "Salmeterol",
+    "montelukast": "Montelukast",
+    "singulair": "Montelukast",
+    "sertraline": "Sertraline",
+    "zoloft": "Sertraline",
+    "fluoxetine": "Fluoxetine",
+    "prozac": "Fluoxetine",
+    "paroxetine": "Paroxetine",
+    "paxil": "Paroxetine",
+    "citalopram": "Citalopram",
+    "celexa": "Citalopram",
+    "amitriptyline": "Amitriptyline",
+    "elavil": "Amitriptyline",
+    "cetirizine": "Cetirizine",
+    "zyrtec": "Cetirizine",
+    "loratadine": "Loratadine",
+    "claritin": "Loratadine",
+    "fexofenadine": "Fexofenadine",
+    "allegra": "Fexofenadine",
+    "morphine": "Morphine",
+    "codeine": "Codeine",
+    "tramadol": "Tramadol",
+    "ultram": "Tramadol",
+    "hydrocodone": "Hydrocodone",
+    "norco": "Hydrocodone",
+    "prednisone": "Prednisone",
+    "deltasone": "Prednisone",
+    "dexamethasone": "Dexamethasone",
+    "decadron": "Dexamethasone",
+    "insulin": "Insulin",
+    "humalog": "Insulin Lispro",
+    "lantus": "Insulin Glargine",
+    "levemir": "Insulin Detemir",
+}
+
+def preprocess_ocr_text(text: str) -> str:
+    """
+    Preprocess OCR text to handle common noise and broken tokens.
+    - Join hyphenated words split across lines
+    - Normalize whitespace and punctuation
+    - Fix common OCR errors
+    """
+    # Fix line breaks within words (e.g., "Metfor-\nmin" -> "Metformin")
+    text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', text)
+    
+    # Normalize multiple spaces and tabs to single space
+    text = re.sub(r'[\s\t]+', ' ', text)
+    
+    # Fix OCR common errors: O (letter) vs 0 (zero)
+    # Usually medications don't have numbers at the start, so convert leading 0s
+    text = re.sub(r'\b0+([a-zA-Z])', r'\1', text)
+    
+    # Fix lowercase "l" (L) misidentified as uppercase "I" in medication names
+    # Common patterns like "Ibuprofem" -> keep as is (OCR is imperfect)
+    
+    # Normalize punctuation: remove extra commas/periods around dosages
+    text = re.sub(r'([0-9])\s*[,\.]\s*([0-9])', r'\1.\2', text)
+    
+    # Fix spacing around common abbreviations used in prescriptions
+    text = re.sub(r'\s+(mg|g|ml|units|iu)\b', r' \1', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(mg|g|ml|units|iu)\s+', r'\1 ', text, flags=re.IGNORECASE)
+    
+    # Remove extra spaces before/after text
+    text = text.strip()
+    
+    return text
+
+    """
+    Try to extract JSON from text that might have extra content.
+    Looks for {...} or [...] patterns.
+    """
+    if not text:
+        return None
+    
+    try:
+        # First try direct parse
+        return json.loads(text)
+    except:
+        pass
+    
+    # Try to find JSON object in the text
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except:
+            pass
+    
+    # Try to find JSON array in the text
+    match = re.search(r'\[.*\]', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except:
+            pass
+    
+    return None
+
+
+class BedrockService:
+    def __init__(self, region: str, model_id: str):
+        self.model_id = model_id
+        self.region = region
+        # Try Bedrock, but fallback to mock mode if not available
+        try:
+            self.client = boto3.client("bedrock-runtime", region_name=region)
+            self.bedrock_available = True
+            print(f"✅ Bedrock client initialized with model: {self.model_id} in region: {region}")
+        except Exception as e:
+            print(f"⚠️ Bedrock unavailable in region {region}, using MOCK mode: {type(e).__name__}")
+            self.client = None
+            self.bedrock_available = False
+
+    def _invoke_claude(self, system: str, user: str, max_tokens: int = 800) -> str:
+        """
+        Invoke LLM using Bedrock Converse API.
+        Uses Amazon Nova Micro model.
+        Returns JSON string or None if Bedrock unavailable.
+        """
+        if not self.bedrock_available or self.client is None:
+            # Mock mode - return placeholder for MVP demo
+            print(f"📋 Mock mode: Bedrock unavailable, using mock response")
+            return None
+        
+        try:
+            # Use Bedrock Converse API with unified message format
+            combined_prompt = f"{system}\n\n{user}"
+            
+            response = self.client.converse(
+                modelId=self.model_id,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"text": combined_prompt}]
+                    }
+                ]
+            )
+            
+            # Extract output from Converse API response
+            result = response.get("output", {}).get("message", {}).get("content", [{}])[0].get("text", "").strip()
+            
+            if not result:
+                print(f"⚠️ Bedrock returned empty response")
+                return None
+            
+            print(f"✅ Bedrock response received ({len(result)} chars): {result[:100]}...")
+            return result
+            
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)
+            print(f"❌ Bedrock call failed ({error_type}): {error_msg}")
+            print("📋 Falling back to MOCK mode...")
+            return None
+
+    def normalize_text(self, raw_text: str, patient_verified: bool, ocr_confidence: float) -> dict:
+        """
+        Normalize OCR text with corrections tracking.
+        Returns cleaned_text, flags, corrections, and confidence.
+        """
+        system = (
+            "You are a medical text normalizer. "
+            "Clean OCR noise, expand abbreviations, standardize dosage/frequency. "
+            "Track each correction made. "
+            "Do NOT invent medications or values. If unsure, keep the original phrase and flag it."
+        )
+
+        user = f"""
+Input OCR text:
+---
+{raw_text}
+---
+
+Context:
+- patient_verified: {patient_verified}
+- ocr_confidence: {ocr_confidence}
+
+Return STRICT JSON:
+{{
+  "cleaned_text": "...",
+  "corrections": [
+    {{"original": "ocr_text", "corrected": "normalized", "type": "abbrev_expansion|typo|spacing|other", "confidence": 0-100, "source": "bedrock"}}
+  ],
+  "flags": [{{"span":"...", "reason":"...", "confidence":0-100}}],
+  "confidence": 0-100
+}}
+"""
+        out = self._invoke_claude(system, user, max_tokens=900)
+        
+        # If Bedrock failed, provide mock response for MVP demo
+        if out is None:
+            print(f"⚠️ Normalize: Using mock response (Bedrock unavailable)")
+            corrections = self._detect_common_corrections(raw_text)
+            return {
+                "ok": True,
+                "cleaned_text": raw_text,
+                "corrections": corrections,
+                "flags": [],
+                "confidence": ocr_confidence * 0.95
+            }
+        
+        # Try to extract JSON from response
+        parsed = safe_json_loads(out)
+        if not parsed:
+            print(f"❌ Normalize: Failed to parse response as JSON: {out[:200]}")
+            corrections = self._detect_common_corrections(raw_text)
+            return {
+                "ok": True,
+                "cleaned_text": raw_text,
+                "corrections": corrections,
+                "flags": [],
+                "confidence": ocr_confidence * 0.95
+            }
+        
+        # Ensure required fields exist
+        if "cleaned_text" not in parsed:
+            parsed["cleaned_text"] = raw_text
+        if "corrections" not in parsed:
+            parsed["corrections"] = self._detect_common_corrections(raw_text)
+        if "flags" not in parsed:
+            parsed["flags"] = []
+        if "confidence" not in parsed:
+            parsed["confidence"] = ocr_confidence * 0.95
+        
+        print(f"✅ Normalize: Successfully parsed response")
+        return {"ok": True, **parsed}
+    
+    def _detect_common_corrections(self, text: str) -> list:
+        """Detect common OCR errors and medical abbreviation expansions."""
+        corrections = []
+        
+        # Common abbreviation expansions for Indian prescriptions
+        abbrev_map = {
+            r'\bod\b': ('OD', 'Once daily'),
+            r'\bbd\b': ('BD', 'Twice daily'),
+            r'\btds\b': ('TDS', 'Three times daily'),
+            r'\bqid\b': ('QID', 'Four times daily'),
+            r'\bhs\b': ('HS', 'At bedtime'),
+            r'\bsos\b': ('SOS', 'As needed'),
+            r'\bac\b': ('AC', 'Before meals'),
+            r'\bpc\b': ('PC', 'After meals'),
+        }
+        
+        for pattern, (original_form, expansion) in abbrev_map.items():
+            if re.search(pattern, text.lower()):
+                # Check if it was actually corrected in normalized text
+                match = re.search(pattern, text.lower())
+                if match:
+                    corrections.append({
+                        "original": text[match.start():match.end()],
+                        "corrected": expansion,
+                        "type": "abbrev_expansion",
+                        "confidence": 95,
+                        "source": "pattern_detection"
+                    })
+        
+        return corrections
+
+    def extract_entities(self, normalized_text: str, debug_mode: bool = False) -> dict:
+        """Extract medical entities with improved fuzzy matching and OCR preprocessing."""
+        
+        # Preprocess the text to handle OCR noise
+        preprocessed_text = preprocess_ocr_text(normalized_text)
+        
+        system = (
+            "You are a clinical entity extractor. "
+            "Extract medications, conditions, allergies, and lab values from the text. "
+            "Return JSON only. No extra commentary."
+        )
+
+        user = f"""
+Text:
+---
+{preprocessed_text}
+---
+
+Return STRICT JSON with keys:
+medications[] (name, dosage, frequency, duration, route, notes),
+conditions[], allergies[], lab_values[] (test, value, unit, reference_range).
+If a field is unknown, use "".
+"""
+        out = self._invoke_claude(system, user, max_tokens=900)
+        
+        # If Bedrock failed, provide mock response for MVP demo
+        if out is None:
+            print(f"⚠️ Extract: Using mock response (Bedrock unavailable)")
+            # Parse medications from text (improved pattern matching with preprocessing)
+            medications, debug_info = self._extract_medications_simple(preprocessed_text, debug_mode)
+            
+            result = {
+                "ok": True,
+                "entities": {
+                    "medications": medications,
+                    "conditions": [],
+                    "allergies": [],
+                    "lab_values": []
+                }
+            }
+            
+            if debug_mode:
+                result["extraction_debug"] = {
+                    "matched_terms": debug_info.get("matched_terms", []),
+                    "normalized_text_preview": preprocessed_text[:200],
+                    "notes": debug_info.get("notes", "Using fallback medication extraction")
+                }
+            
+            return result
+        
+        # Try to extract JSON from response
+        parsed = safe_json_loads(out)
+        if not parsed:
+            print(f"❌ Extract: Failed to parse response as JSON: {out[:200]}")
+            # Fall back to improved extraction
+            medications, debug_info = self._extract_medications_simple(preprocessed_text, debug_mode)
+            
+            # Add dosage schedules to medications
+            from utils.dosage_parser import DosageParser
+            medications = self._enhance_medications_with_schedules(medications)
+            
+            result = {
+                "ok": True,
+                "entities": {
+                    "medications": medications,
+                    "conditions": [],
+                    "allergies": [],
+                    "lab_values": []
+                }
+            }
+            
+            if debug_mode:
+                result["extraction_debug"] = {
+                    "matched_terms": debug_info.get("matched_terms", []),
+                    "normalized_text_preview": preprocessed_text[:200],
+                    "notes": f"JSON parse failed, using fallback. Raw response: {out[:100]}"
+                }
+            
+            return result
+        
+        # Enforce required keys
+        for k in ["medications", "conditions", "allergies", "lab_values"]:
+            parsed.setdefault(k, [])
+        
+        # Add dosage schedules to medications
+        from utils.dosage_parser import DosageParser
+        parsed["medications"] = self._enhance_medications_with_schedules(parsed.get("medications", []))
+        
+        # Optionally integrate Comprehend Medical
+        if Config.ENABLE_COMPREHEND_MEDICAL:
+            from utils.comprehend_medical_service import ComprehendMedicalService
+            from utils.comprehend_medical_service import merge_entities
+            comprehend_svc = ComprehendMedicalService(region=self.region)
+            comprehend_result = comprehend_svc.detect_medical_entities(preprocessed_text)
+            
+            if comprehend_result.get("ok"):
+                comprehend_entities = comprehend_result.get("entities", {})
+                # Merge Comprehend Medical entities with extracted entities
+                merged = merge_entities(
+                    base_entities={
+                        "medications": parsed.get("medications", []),
+                        "conditions": parsed.get("conditions", []),
+                        "allergies": parsed.get("allergies", [])
+                    },
+                    comprehend_entities=comprehend_entities
+                )
+                parsed["medications"] = merged.get("medications", [])
+                parsed["conditions"] = merged.get("conditions", [])
+                parsed["allergies"] = merged.get("allergies", [])
+                print(f"✅ Comprehend Medical integration successful")
+        
+        result = {"ok": True, "entities": parsed}
+        
+        if debug_mode:
+            result["extraction_debug"] = {
+                "matched_terms": [m.get("name", "") for m in parsed.get("medications", [])],
+                "normalized_text_preview": preprocessed_text[:200],
+                "notes": "Bedrock extraction successful"
+            }
+        
+        print(f"✅ Extract: Successfully parsed response")
+        return result
+
+    def _extract_medications_simple(self, text: str, debug_mode: bool = False):
+        """
+        Improved pattern matching for medications with fuzzy matching, brand mapping, and OCR preprocessing.
+        Handles India pharmaceutical brands (Dolo, Pan, Azee) and distorted OCR tokens.
+        Returns tuple: (medications_list, debug_info_dict)
+        """
+        # Comprehensive medication database
+        medications_db = {
+            # NSAIDs
+            "ibuprofen": "Ibuprofen",
+            "naproxen": "Naproxen",
+            "aspirin": "Aspirin",
+            "diclofenac": "Diclofenac",
+            "indomethacin": "Indomethacin",
+            # Acetaminophen
+            "paracetamol": "Paracetamol",
+            "acetaminophen": "Acetaminophen",
+            "tylenol": "Acetaminophen",
+            # Antibiotics
+            "amoxicillin": "Amoxicillin",
+            "penicillin": "Penicillin",
+            "ciprofloxacin": "Ciprofloxacin",
+            "azithromycin": "Azithromycin",
+            "doxycycline": "Doxycycline",
+            "cephalexin": "Cephalexin",
+            "erythromycin": "Erythromycin",
+            "minocycline": "Minocycline",
+            # Anticoagulants & Antiplatelets
+            "warfarin": "Warfarin",
+            "clopidogrel": "Clopidogrel",
+            "rivaroxaban": "Rivaroxaban",
+            "apixaban": "Apixaban",
+            "dabigatran": "Dabigatran",
+            # Diabetes
+            "metformin": "Metformin",
+            "insulin": "Insulin",
+            "glibenclamide": "Glibenclamide",
+            "sitagliptin": "Sitagliptin",
+            "linagliptin": "Linagliptin",
+            # Cardiovascular
+            "lisinopril": "Lisinopril",
+            "enalapril": "Enalapril",
+            "losartan": "Losartan",
+            "amlodipine": "Amlodipine",
+            "atorvastatin": "Atorvastatin",
+            "simvastatin": "Simvastatin",
+            "metoprolol": "Metoprolol",
+            "atenolol": "Atenolol",
+            "propranolol": "Propranolol",
+            "diltiazem": "Diltiazem",
+            "verapamil": "Verapamil",
+            # Thyroid
+            "levothyroxine": "Levothyroxine",
+            "thyroxine": "Levothyroxine",
+            # Respiratory
+            "albuterol": "Albuterol",
+            "salbutamol": "Salbutamol",
+            "fluticasone": "Fluticasone",
+            "salmeterol": "Salmeterol",
+            "montelukast": "Montelukast",
+            # Antidepressants
+            "sertraline": "Sertraline",
+            "fluoxetine": "Fluoxetine",
+            "paroxetine": "Paroxetine",
+            "citalopram": "Citalopram",
+            "amitriptyline": "Amitriptyline",
+            # Antihistamines
+            "cetirizine": "Cetirizine",
+            "loratadine": "Loratadine",
+            "fexofenadine": "Fexofenadine",
+            "promethazine": "Promethazine",
+            # Gastrointestinal
+            "omeprazole": "Omeprazole",
+            "pantoprazole": "Pantoprazole",
+            "ranitidine": "Ranitidine",
+            "metoclopramide": "Metoclopramide",
+            # Analgesics/Opioids
+            "morphine": "Morphine",
+            "codeine": "Codeine",
+            "tramadol": "Tramadol",
+            "hydrocodone": "Hydrocodone",
+            # Anti-inflammatory Steroids
+            "prednisone": "Prednisone",
+            "dexamethasone": "Dexamethasone",
+            "methylprednisolone": "Methylprednisolone",
+            "hydrocortisone": "Hydrocortisone",
+        }
+        
+        medications = []
+        matched_terms = []
+        text_lower = text.lower()
+        
+        # Regex patterns for dosage extraction
+        dosage_pattern = r'(\d+(?:\.\d+)?)\s*(mg|g|ml|units|iu|tabs|tablets|capsules|mcg|µg)?(?:\s*(tablet|pill|capsule|injection|drops|spray|inhalation|patch))?'
+        frequency_patterns = {
+            r'once\s+daily': 'Once daily',
+            r'once\s+a\s+day': 'Once daily',
+            r'od(?:\s|$)': 'Once daily',
+            r'twice\s+daily': 'Twice daily',
+            r'bd(?:\s|$)': 'Twice daily',
+            r'twice\s+a\s+day': 'Twice daily',
+            r'three\s+times?\s+daily': 'Three times daily',
+            r'tid(?:\s|$)': 'Three times daily',
+            r'four\s+times?\s+daily': 'Four times daily',
+            r'qid(?:\s|$)': 'Four times daily',
+            r'every\s+(\d+)\s+hours?': 'Every {1} hours',
+            r'(\d+)\s*(?:hourly|h)': 'Every {1} hours',
+            r'as\s+needed': 'As needed',
+            r'prn(?:\s|$)': 'As needed',
+            r'bedtime': 'At bedtime',
+            r'morning': 'In the morning',
+            r'evening': 'In the evening',
+        }
+        
+        route_keywords = {
+            'oral': 'Oral',
+            'po': 'Oral',
+            'mouth': 'Oral',
+            'injection': 'Injection',
+            'iv': 'Intravenous',
+            'intravenous': 'Intravenous',
+            'im': 'Intramuscular',
+            'intramuscular': 'Intramuscular',
+            'topical': 'Topical',
+            'cream': 'Topical',
+            'ointment': 'Topical',
+            'transdermal': 'Transdermal',
+            'patch': 'Transdermal',
+            'inhalation': 'Inhalation',
+            'inhaler': 'Inhalation',
+            'aerosol': 'Inhalation',
+            'sublingual': 'Sublingual',
+            'sublingually': 'Sublingual',
+        }
+        
+        # Phase 1: Exact match in medications database
+        for med_pattern, med_name in medications_db.items():
+            pattern = r'(?:^|\W)' + re.escape(med_pattern) + r'(?:\s|$|,|:|(\.)|(?=\d))'
+            matches = list(re.finditer(pattern, text_lower, re.IGNORECASE))
+            
+            if not matches:
+                continue
+            
+            for match in matches:
+                med_start = match.start()
+                med_end = match.end()
+                
+                # Extract dosage
+                dosage_search_text = text[med_end:min(med_end + 50, len(text))]
+                dosage_match = re.search(dosage_pattern, dosage_search_text, re.IGNORECASE)
+                dosage = ""
+                if dosage_match:
+                    amount = dosage_match.group(1)
+                    unit = dosage_match.group(2) or ""
+                    dosage = f"{amount} {unit}" if unit else amount
+                
+                # Extract frequency, route, duration
+                search_context = text_lower[max(0, med_start-100):min(med_end+100, len(text))]
+                
+                frequency = ""
+                for freq_pattern, freq_name in frequency_patterns.items():
+                    freq_match = re.search(freq_pattern, search_context, re.IGNORECASE)
+                    if freq_match:
+                        frequency = freq_name.format(freq_match.group(1)) if '{1}' in freq_name else freq_name
+                        break
+                
+                route = ""
+                for route_kw, route_name in route_keywords.items():
+                    if route_kw in search_context:
+                        route = route_name
+                        break
+                
+                duration = ""
+                duration_match = re.search(r'for\s+(\d+)\s+(days?|weeks?|months?)', search_context, re.IGNORECASE)
+                if duration_match:
+                    duration = f"For {duration_match.group(1)} {duration_match.group(2)}"
+                
+                existing_med = next((m for m in medications if m['name'] == med_name), None)
+                if not existing_med:
+                    medications.append({
+                        "name": med_name,
+                        "dosage": dosage or "",
+                        "frequency": frequency or "",
+                        "duration": duration or "",
+                        "route": route or "",
+                        "notes": "Exact match from medication database"
+                    })
+                    matched_terms.append(f"{med_name} (exact)")
+        
+        # Phase 2: India brand mapping (Dolo → Paracetamol, Pan → Pantoprazole, Azee → Azithromycin)
+        for brand_lower, generic_name in INDIA_BRAND_MAPPING.items():
+            pattern = r'(?:^|\W)' + re.escape(brand_lower) + r'(?:\s|$|,|:|(\.)|(?=\d))'
+            matches = list(re.finditer(pattern, text_lower, re.IGNORECASE))
+            
+            if not matches:
+                continue
+            
+            for match in matches:
+                med_start = match.start()
+                med_end = match.end()
+                
+                # Check if already extracted
+                existing_med = next((m for m in medications if m['name'] == generic_name), None)
+                if existing_med:
+                    continue
+                
+                # Extract dosage, frequency, route, duration
+                dosage_search_text = text[med_end:min(med_end + 50, len(text))]
+                dosage_match = re.search(dosage_pattern, dosage_search_text, re.IGNORECASE)
+                dosage = ""
+                if dosage_match:
+                    amount = dosage_match.group(1)
+                    unit = dosage_match.group(2) or ""
+                    dosage = f"{amount} {unit}" if unit else amount
+                
+                search_context = text_lower[max(0, med_start-100):min(med_end+100, len(text))]
+                
+                frequency = ""
+                for freq_pattern, freq_name in frequency_patterns.items():
+                    freq_match = re.search(freq_pattern, search_context, re.IGNORECASE)
+                    if freq_match:
+                        frequency = freq_name.format(freq_match.group(1)) if '{1}' in freq_name else freq_name
+                        break
+                
+                route = ""
+                for route_kw, route_name in route_keywords.items():
+                    if route_kw in search_context:
+                        route = route_name
+                        break
+                
+                duration = ""
+                duration_match = re.search(r'for\s+(\d+)\s+(days?|weeks?|months?)', search_context, re.IGNORECASE)
+                if duration_match:
+                    duration = f"For {duration_match.group(1)} {duration_match.group(2)}"
+                
+                medications.append({
+                    "name": generic_name,
+                    "dosage": dosage or "",
+                    "frequency": frequency or "",
+                    "duration": duration or "",
+                    "route": route or "",
+                    "notes": f"Matched from brand name: {brand_lower.capitalize()}"
+                })
+                matched_terms.append(f"{generic_name} (brand: {brand_lower.capitalize()})")
+        
+        # Phase 3: Fuzzy matching for distorted OCR tokens (if rapidfuzz available)
+        if RAPIDFUZZ_AVAILABLE:
+            # Extract potential medication tokens from text (3+ letter words)
+            tokens = re.findall(r'\b[a-z]{3,}\b', text_lower)
+            seen_tokens = set()
+            
+            for token in tokens:
+                if token in seen_tokens or len(token) < 3:
+                    continue
+                seen_tokens.add(token)
+                
+                # Skip if already matched exactly or by brand
+                if any(m['name'].lower() == token for m in medications):
+                    continue
+                
+                # Try fuzzy matching against all known medications
+                best_match = None
+                best_score = 0
+                
+                all_meds = list(medications_db.values()) + list(INDIA_BRAND_MAPPING.values())
+                for med_name in set(all_meds):
+                    score = fuzz.token_set_ratio(token, med_name.lower()) / 100.0
+                    if score > best_score:
+                        best_score = score
+                        best_match = med_name
+                
+                # Use fuzzy match if score >= 0.70 (70% similarity)
+                if best_match and best_score >= 0.70:
+                    existing_med = next((m for m in medications if m['name'] == best_match), None)
+                    if not existing_med:
+                        # Find token position for context extraction
+                        token_pos = text_lower.find(token)
+                        if token_pos >= 0:
+                            dosage_search_text = text[token_pos + len(token):min(token_pos + len(token) + 50, len(text))]
+                            dosage_match = re.search(dosage_pattern, dosage_search_text, re.IGNORECASE)
+                            dosage = ""
+                            if dosage_match:
+                                amount = dosage_match.group(1)
+                                unit = dosage_match.group(2) or ""
+                                dosage = f"{amount} {unit}" if unit else amount
+                            
+                            search_context = text_lower[max(0, token_pos-100):min(token_pos+100, len(text))]
+                            
+                            frequency = ""
+                            for freq_pattern, freq_name in frequency_patterns.items():
+                                freq_match = re.search(freq_pattern, search_context, re.IGNORECASE)
+                                if freq_match:
+                                    frequency = freq_name.format(freq_match.group(1)) if '{1}' in freq_name else freq_name
+                                    break
+                            
+                            route = ""
+                            for route_kw, route_name in route_keywords.items():
+                                if route_kw in search_context:
+                                    route = route_name
+                                    break
+                            
+                            duration = ""
+                            duration_match = re.search(r'for\s+(\d+)\s+(days?|weeks?|months?)', search_context, re.IGNORECASE)
+                            if duration_match:
+                                duration = f"For {duration_match.group(1)} {duration_match.group(2)}"
+                            
+                            medications.append({
+                                "name": best_match,
+                                "dosage": dosage or "",
+                                "frequency": frequency or "",
+                                "duration": duration or "",
+                                "route": route or "",
+                                "notes": f"Fuzzy match (similarity: {best_score:.0%}) from OCR token: {token}"
+                            })
+                            matched_terms.append(f"{best_match} (fuzzy: {token})")
+        
+        debug_info = {
+            "matched_terms": matched_terms,
+            "notes": f"Extracted {len(medications)} medications using 3-phase matching (exact, brand mapping, fuzzy)" if matched_terms else "No medications extracted"
+        }
+        
+        return (medications if medications else [], debug_info)
+
+    def _enhance_medications_with_schedules(self, medications: list) -> list:
+        """
+        Add dosage schedule information to medications using DosageParser.
+        Returns enhanced medications list with 'schedule' field added to each medication.
+        """
+        from utils.dosage_parser import DosageParser
+        
+        for med in medications:
+            if not isinstance(med, dict):
+                continue
+            
+            # Parse dosage + frequency to get structured schedule
+            dosage = med.get("dosage", "")
+            frequency = med.get("frequency", "")
+            schedule_text = f"{dosage} {frequency}".strip()
+            
+            try:
+                schedule = DosageParser.parse(schedule_text)
+                med["schedule"] = schedule.to_dict()
+            except Exception as e:
+                print(f"⚠️ Failed to parse dosage schedule for {med.get('name')}: {str(e)}")
+                med["schedule"] = None
+        
+        return medications
+
+
+def test_bedrock_connection(region: str = "ap-south-1", model_id: str = "amazon.nova-micro-v1:0"):
+    """
+    Test Bedrock connectivity using Amazon Nova Micro with Converse API.
+    Returns tuple: (success: bool, message: str)
+    Shows if Bedrock is actually working or if we're in MOCK mode.
+    """
+    try:
+        client = boto3.client("bedrock-runtime", region_name=region)
+        
+        print(f"📡 Testing Bedrock model: {model_id}")
+        print(f"📡 Region: {region}")
+        
+        # Use Converse API
+        response = client.converse(
+            modelId=model_id,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"text": "Say Bedrock OK"}]
+                }
+            ]
+        )
+        
+        # Parse response from Converse API
+        result = response.get("output", {}).get("message", {}).get("content", [{}])[0].get("text", "").strip()
+        
+        print(f"✅ Bedrock is WORKING!")
+        return True, f"✅ Bedrock is ACTIVE - {result}"
+        
+    except Exception as e:
+        error_type = type(e).__name__
+        error_msg = str(e)
+        print(f"❌ Bedrock connection failed ({error_type}): {error_msg}")
+        
+        # Provide user-friendly fallback message
+        return False, f"⚠️ Bedrock UNAVAILABLE - Using MOCK MODE for MVP demo (Error: {error_type}: {error_msg})"
