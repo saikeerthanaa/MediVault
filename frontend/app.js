@@ -1,579 +1,616 @@
-/* MediVault HITL - Vanilla JavaScript */
+// MediVault Frontend - Complete Application State & Logic
+// Phase 5: Complete redesign with new workflow
 
+// Global state
 const state = {
     currentStep: 'upload',
-    extractedText: '',
-    confidence: 0,
-    entities: {},
-    interactions: [],
-    currentMeds: []
+    uploadedFile: null,
+    rawText: '',
+    ocrConfidence: 0,
+    extractedEntities: null,
+    prescriptionId: null,
+    interactionResults: null,
+    audioBlob: null,
+    isSaving: false,
 };
 
-/* DOM Elements */
-const els = {
-    // File upload
-    fileInput: document.getElementById('file-input'),
-    uploadZone: document.getElementById('upload-zone'),
-    btnUpload: document.getElementById('btn-upload'),
+// DOM Elements Cache
+const elements = {
+    // Sidebar
+    sidebarItems: document.querySelectorAll('.sidebar-item'),
     
-    // Steps
+    // Progress
+    progressSteps: document.querySelectorAll('.progress-step'),
+    
+    // Step panels
     stepPanels: document.querySelectorAll('.step-panel'),
-    stepNavs: document.querySelectorAll('.step-nav'),
+    successScreen: document.getElementById('success-screen'),
     
-    // Upload results
-    confidenceScore: document.getElementById('confidence-score'),
-    reviewStatus: document.getElementById('review-status'),
-    textPreview: document.getElementById('text-preview'),
+    // Step 1: Upload
+    uploadZone: document.getElementById('upload-zone'),
+    fileInput: document.getElementById('file-input'),
+    btnExtractText: document.getElementById('btn-extract-text'),
+    fileConfirmation: document.getElementById('file-confirmation'),
+    confirmationFilename: document.getElementById('confirmation-filename'),
+    confirmationDetails: document.getElementById('confirmation-details'),
+    extractLoading: document.getElementById('extract-loading'),
     uploadPreview: document.getElementById('upload-preview'),
+    confidenceScore: document.getElementById('confidence-score'),
+    textPreview: document.getElementById('text-preview'),
     errorUpload: document.getElementById('error-upload'),
-    btnAdvanceExtract: document.getElementById('btn-advance-extract'),
     
-    // Extract
+    // Step 2: Extract
     reviewedText: document.getElementById('reviewed-text'),
-    btnNormalize: document.getElementById('btn-normalize'),
+    btnNormalizeExtract: document.getElementById('btn-normalize-extract'),
+    normalizeLoading: document.getElementById('normalize-loading'),
+    saveStatus: document.getElementById('save-status'),
     extractPreview: document.getElementById('extract-preview'),
     normalizedText: document.getElementById('normalized-text'),
-    errorExtract: document.getElementById('error-extract'),
-    btnAdvanceInteract: document.getElementById('btn-advance-interact'),
-    
-    // Entities
     entitiesMedications: document.getElementById('entities-medications'),
     entitiesConditions: document.getElementById('entities-conditions'),
     entitiesAllergies: document.getElementById('entities-allergies'),
-    entitiesInstructions: document.getElementById('entities-instructions'),
+    btnAdvanceInteract: document.getElementById('btn-advance-interact'),
+    errorExtract: document.getElementById('error-extract'),
     
-    // Interact
-    newMedInput: document.getElementById('new-med-input'),
-    medAddInput: document.getElementById('med-add-input'),
-    medTags: document.getElementById('med-tags'),
-    btnCheckInteraction: document.getElementById('btn-check-interaction'),
+    // Step 3: Interact
+    interactLoading: document.getElementById('interact-loading'),
     interactPreview: document.getElementById('interact-preview'),
     interactionsList: document.getElementById('interactions-list'),
-    errorInteract: document.getElementById('error-interact'),
     btnAdvanceVoice: document.getElementById('btn-advance-voice'),
+    errorInteract: document.getElementById('error-interact'),
     
-    // Voice
+    // Step 4: Voice
     voiceSelect: document.getElementById('voice-select'),
     btnGenerateAudio: document.getElementById('btn-generate-audio'),
-    audioPlayer: document.getElementById('audio-player'),
-    summaryText: document.getElementById('summary-text'),
+    btnSkipVoice: document.getElementById('btn-skip-voice'),
+    ttsLoading: document.getElementById('tts-loading'),
     voicePreview: document.getElementById('voice-preview'),
+    summaryText: document.getElementById('summary-text'),
+    audioPlayer: document.getElementById('audio-player'),
     errorVoice: document.getElementById('error-voice'),
-    btnSavePrescription: document.getElementById('btn-save-prescription'),
-    btnReset: document.getElementById('btn-reset'),
     
-    // Debug
-    debugTable: document.getElementById('debug-table')
+    // Success screen
+    successRxId: document.getElementById('success-rx-id'),
+    successMedications: document.getElementById('success-medications'),
+    btnStartOver: document.getElementById('btn-start-over'),
+    btnClose: document.getElementById('btn-close'),
+    
+    // Toast
+    toastContainer: document.querySelector('.toast-container'),
 };
 
-/* ===== Event Listeners ===== */
-
-// Upload zone
-els.uploadZone.addEventListener('click', () => els.fileInput.click());
-
-els.uploadZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    els.uploadZone.style.borderColor = '#3498db';
-    els.uploadZone.style.background = '#e3f2fd';
-});
-
-els.uploadZone.addEventListener('dragleave', () => {
-    els.uploadZone.style.borderColor = '#bdc3c7';
-    els.uploadZone.style.background = '#ecf0f1';
-});
-
-els.uploadZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    els.uploadZone.style.borderColor = '#bdc3c7';
-    els.uploadZone.style.background = '#ecf0f1';
+// ===== Toast Notification System =====
+function showToast(message, type = 'success') {
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+    };
     
-    if (e.dataTransfer.files.length > 0) {
-        els.fileInput.files = e.dataTransfer.files;
-        handleFileChange();
-    }
-});
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type]}</div>
+        <div class="toast-text">${message}</div>
+    `;
+    
+    elements.toastContainer.appendChild(toast);
+    
+    // Remove after 4 seconds
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
 
-els.fileInput.addEventListener('change', handleFileChange);
-els.btnUpload.addEventListener('click', processDocument);
-els.btnAdvanceExtract.addEventListener('click', () => showStep('extract'));
-els.btnNormalize.addEventListener('click', callNormalizeExtract);
-els.btnAdvanceInteract.addEventListener('click', () => showStep('interact'));
-els.btnCheckInteraction.addEventListener('click', callCheckInteraction);
-els.btnAdvanceVoice.addEventListener('click', () => showStep('voice'));
-els.btnGenerateAudio.addEventListener('click', callTts);
-els.btnSavePrescription.addEventListener('click', savePrescription);
-els.btnReset.addEventListener('click', resetApp);
-
-els.medAddInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        const med = els.medAddInput.value.trim();
-        if (med) {
-            state.currentMeds.push(med);
-            els.medAddInput.value = '';
-            renderMedTags();
+// ===== UI Helper Functions =====
+function setCurrentStep(stepName) {
+    state.currentStep = stepName;
+    
+    // Update sidebar
+    elements.sidebarItems.forEach(item => {
+        if (item.dataset.step === stepName) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
         }
-    }
-});
-
-document.querySelectorAll('.step-nav').forEach(nav => {
-    nav.addEventListener('click', () => {
-        const step = nav.dataset.step;
-        showStep(step);
     });
-});
+    
+    // Update progress bar
+    const stepIndex = ['upload', 'extract', 'interact', 'voice'].indexOf(stepName);
+    elements.progressSteps.forEach((step, index) => {
+        if (index < stepIndex) {
+            step.classList.add('completed');
+            step.classList.remove('active');
+        } else if (index === stepIndex) {
+            step.classList.add('active');
+            step.classList.remove('completed');
+        } else {
+            step.classList.remove('active', 'completed');
+        }
+    });
+    
+    // Update panels
+    elements.stepPanels.forEach(panel => {
+        panel.classList.toggle('active', panel.id === `step-${stepName}`);
+    });
+    
+    elements.successScreen.style.display = 'none';
+}
 
-/* ===== File Upload ===== */
+function showError(element, message) {
+    element.textContent = message;
+    element.style.display = 'block';
+}
 
-function handleFileChange() {
-    const file = els.fileInput.files[0];
-    if (file) {
-        els.btnUpload.disabled = false;
-        els.btnUpload.innerHTML = '<span>🔄 Extract Text</span>';
+function hideError(element) {
+    element.style.display = 'none';
+}
+
+function renderEntityItems(container, items) {
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div class="entity-item" style="opacity: 0.6;">—</div>';
+        return;
+    }
+    
+    container.innerHTML = items.map(item => 
+        `<div class="entity-item">${item}</div>`
+    ).join('');
+}
+
+function renderMedicationCards(medications) {
+    if (!medications || medications.length === 0) {
+        return '<div style="grid-column: 1/-1; text-align: center; color: #cbd5e1;">No medications found</div>';
+    }
+    
+    return medications.map(med => `
+        <div class="medication-card">
+            <div class="medication-name">${med.name || med}</div>
+            ${med.dosage ? `<div class="medication-detail">💊 <strong>${med.dosage}</strong></div>` : ''}
+            ${med.frequency ? `<div class="medication-detail">🕐 <strong>${med.frequency}</strong></div>` : ''}
+            ${med.duration ? `<div class="medication-detail">📅 <strong>${med.duration}</strong></div>` : ''}
+        </div>
+    `).join('');
+}
+
+// ===== API Calls =====
+async function apiCall(endpoint, method = 'POST', data = null) {
+    try {
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        };
+        
+        if (data) {
+            options.body = JSON.stringify(data);
+        }
+        
+        const response = await fetch(endpoint, options);
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}`);
+        }
+        
+        return result;
+    } catch (error) {
+        console.error(`API call failed: ${endpoint}`, error);
+        throw error;
     }
 }
 
-async function processDocument() {
-    const file = els.fileInput.files[0];
-    if (!file) {
-        showError('upload', 'Please select a file');
-        return;
-    }
-
-    clearError('upload');
-    els.btnUpload.disabled = true;
-    els.btnUpload.innerHTML = '<span>⏳ Processing...</span>';
-
+async function uploadFile(file) {
     try {
         const formData = new FormData();
         formData.append('file', file);
-
+        
         const response = await fetch('/ai/process-document', {
             method: 'POST',
-            body: formData
+            body: formData,
         });
-
-        const data = await response.json();
-        logDebug('/ai/process-document', 'POST', response.status, {file: file.name}, data);
-
-        if (!response.ok || !data.ok) {
-            throw new Error(data.error || 'Failed to process document');
-        }
-
-        state.extractedText = data.raw_text;
-        state.confidence = data.confidence;
-
-        els.textPreview.textContent = data.raw_text;
-        els.confidenceScore.textContent = data.confidence.toFixed(1) + '%';
-        els.confidenceScore.style.background = data.confidence > 80 
-            ? 'linear-gradient(135deg, #2ecc71, #27ae60)' 
-            : '#ffc107';
-
-        els.reviewStatus.textContent = data.requires_review ? 'Yes' : 'No';
-        els.reviewStatus.style.background = data.requires_review ? '#fff3cd' : '#d4edda';
-        els.reviewStatus.style.color = data.requires_review ? '#856404' : '#155724';
-
-        els.reviewedText.value = data.raw_text;
-        els.uploadPreview.style.display = 'block';
-        els.btnAdvanceExtract.disabled = false;
-
-    } catch (error) {
-        console.error(error);
-        showError('upload', error.message);
-    } finally {
-        els.btnUpload.disabled = false;
-        els.btnUpload.innerHTML = '<span>🔄 Extract Text</span>';
-    }
-}
-
-/* ===== Normalize & Extract ===== */
-
-async function callNormalizeExtract() {
-    const text = els.reviewedText.value.trim();
-    if (!text) {
-        showError('extract', 'Please enter text');
-        return;
-    }
-
-    clearError('extract');
-    els.btnNormalize.disabled = true;
-    els.btnNormalize.innerHTML = '<span>⏳ Processing...</span>';
-
-    try {
-        const payload = {
-            reviewed_text: text,
-            patient_verified: true,
-            ocr_confidence: state.confidence
-        };
-
-        const response = await fetch('/ai/normalize-and-extract', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-        logDebug('/ai/normalize-and-extract', 'POST', response.status, payload, data);
-
-        if (!response.ok || !data.ok) {
-            throw new Error(data.error || 'Failed to extract entities');
-        }
-
-        state.entities = data.entities;
-        els.normalizedText.textContent = data.normalized.cleaned_text;
-
-        renderEntities(data.entities);
-        els.extractPreview.style.display = 'block';
-
-    } catch (error) {
-        console.error(error);
-        showError('extract', error.message);
-    } finally {
-        els.btnNormalize.disabled = false;
-        els.btnNormalize.innerHTML = '<span>⚡ Normalize & Extract</span>';
-    }
-}
-
-/* ===== Check Interaction ===== */
-
-async function callCheckInteraction() {
-    const newMed = els.newMedInput.value.trim();
-    if (!newMed) {
-        showError('interact', 'Please enter a medication');
-        return;
-    }
-
-    const currentMeds = state.currentMeds.length > 0 
-        ? state.currentMeds 
-        : (state.entities.medications || []);
-
-    clearError('interact');
-    els.btnCheckInteraction.disabled = true;
-    els.btnCheckInteraction.innerHTML = '<span>⏳ Checking...</span>';
-
-    try {
-        const payload = {
-            new_med: newMed,
-            current_meds: currentMeds
-        };
-
-        const response = await fetch('/ai/check-interaction', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-        logDebug('/ai/check-interaction', 'POST', response.status, payload, data);
-
-        if (!response.ok || !data.ok) {
-            throw new Error(data.error || 'Failed to check interactions');
-        }
-
-        state.interactions = data.interactions || [];
-        renderInteractions(data);
-        els.interactPreview.style.display = 'block';
-
-    } catch (error) {
-        console.error(error);
-        showError('interact', error.message);
-    } finally {
-        els.btnCheckInteraction.disabled = false;
-        els.btnCheckInteraction.innerHTML = '<span>🔍 Check Interactions</span>';
-    }
-}
-
-/* ===== Text-to-Speech ===== */
-
-async function callTts() {
-    const summary = generateSummary();
-    if (!summary) {
-        showError('voice', 'No text to synthesize');
-        return;
-    }
-
-    clearError('voice');
-    els.btnGenerateAudio.disabled = true;
-    els.btnGenerateAudio.innerHTML = '<span>⏳ Generating...</span>';
-
-    try {
-        const payload = {
-            text: summary,
-            voice_id: els.voiceSelect.value
-        };
-
-        const response = await fetch('/ai/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        logDebug('/ai/tts', 'POST', response.status, payload, {audio: 'audio/mpeg'});
-
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-
-        els.audioPlayer.src = url;
-        els.summaryText.textContent = summary;
-        els.voicePreview.style.display = 'block';
-
-    } catch (error) {
-        console.error(error);
-        showError('voice', error.message);
-    } finally {
-        els.btnGenerateAudio.disabled = false;
-        els.btnGenerateAudio.innerHTML = '<span>🎤 Generate Audio</span>';
-    }
-}
-
-async function savePrescription() {
-    clearError('voice');
-    els.btnSavePrescription.disabled = true;
-    els.btnSavePrescription.innerHTML = '<span>⏳ Saving...</span>';
-
-    try {
-        // Build the save request payload
-        const payload = {
-            patient_id: 1,  // TODO: get from UI or user session
-            doctor_id: 2,   // TODO: get from UI or user session
-            s3_image_url: 'https://placeholder.com/prescription.jpg',  // TODO: use actual uploaded image
-            entities: state.entities
-        };
-
-        const response = await fetch('/ai/save-prescription', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        logDebug('/ai/save-prescription', 'POST', response.status, payload, {});
-
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        if (result.ok) {
-            els.btnSavePrescription.innerHTML = '<span>✓ Saved Successfully</span>';
-            els.btnSavePrescription.style.background = 'rgba(0, 184, 148, 0.3)';
-            els.btnSavePrescription.style.borderColor = '#00b894';
-            
-            // Show success details
-            const details = `
-                <div style="margin-top: 16px; padding: 12px; background: rgba(0, 184, 148, 0.1); border-left: 3px solid #00b894; border-radius: 4px;">
-                    <p><strong>✓ Prescription Saved</strong></p>
-                    <p style="font-size: 12px; color: #a8a8d4; margin-top: 8px;">
-                        ID: ${result.prescription_id}<br>
-                        Medicines: ${result.medicines_saved}<br>
-                        Interactions Found: ${result.interactions?.length || 0}
-                    </p>
-                </div>
-            `;
-            els.voicePreview.insertAdjacentHTML('beforeend', details);
-        } else {
-            throw new Error(result.error || 'Failed to save prescription');
-        }
-
-    } catch (error) {
-        console.error(error);
-        showError('voice', error.message);
-    } finally {
-        els.btnSavePrescription.disabled = false;
-        if (!els.btnSavePrescription.innerHTML.includes('✓')) {
-            els.btnSavePrescription.innerHTML = '<span>💾 Save to Database</span>';
-        }
-    }
-}
-
-/* ===== Rendering ===== */
-
-function renderEntities(entities) {
-    // Render medications (objects with name, dosage, frequency, etc.)
-    const renderMedicationList = (container, items) => {
-        container.innerHTML = '';
-        if (!items || items.length === 0) {
-            container.innerHTML = '<div style="color: #bdc3c7; font-size: 12px; padding: 8px;">None found</div>';
-            return;
-        }
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'entity-item';
-            
-            // Handle medication object
-            if (typeof item === 'object' && item.name) {
-                let html = `<strong>${item.name}</strong>`;
-                if (item.dosage) html += `<br><small>Dosage: ${item.dosage}</small>`;
-                if (item.frequency) html += `<br><small>Frequency: ${item.frequency}</small>`;
-                if (item.duration) html += `<br><small>Duration: ${item.duration}</small>`;
-                div.innerHTML = html;
-            } else {
-                // Handle simple strings
-                div.textContent = item;
-            }
-            
-            container.appendChild(div);
-        });
-    };
-    
-    // Render simple list (strings)
-    const render = (container, items) => {
-        container.innerHTML = '';
-        if (!items || items.length === 0) {
-            container.innerHTML = '<div style="color: #bdc3c7; font-size: 12px; padding: 8px;">None found</div>';
-            return;
-        }
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'entity-item';
-            div.textContent = typeof item === 'string' ? item : JSON.stringify(item);
-            container.appendChild(div);
-        });
-    };
-
-    // Use special rendering for medications (objects), simple rendering for others (strings)
-    renderMedicationList(els.entitiesMedications, entities.medications);
-    render(els.entitiesConditions, entities.conditions);
-    render(els.entitiesAllergies, entities.allergies);
-    render(els.entitiesInstructions, entities.instructions);
-}
-
-function renderMedTags() {
-    els.medTags.innerHTML = '';
-    state.currentMeds.forEach((med, idx) => {
-        const tag = document.createElement('div');
-        tag.className = 'tag';
-        tag.innerHTML = `${med} <button data-idx="${idx}">✕</button>`;
-        tag.querySelector('button').addEventListener('click', () => {
-            state.currentMeds.splice(idx, 1);
-            renderMedTags();
-        });
-        els.medTags.appendChild(tag);
-    });
-}
-
-function renderInteractions(data) {
-    els.interactionsList.innerHTML = '';
-
-    if (!data.interactions || data.interactions.length === 0) {
-        const div = document.createElement('div');
-        div.className = 'interaction-item safe';
-        div.innerHTML = '<strong>✅ No significant interactions found</strong>';
-        els.interactionsList.appendChild(div);
-        return;
-    }
-
-    data.interactions.forEach(inter => {
-        const div = document.createElement('div');
-        div.className = 'interaction-item';
         
-        const severityClass = inter.severity === 'high' ? 'severity-high' 
-            : inter.severity === 'moderate' ? 'severity-moderate' 
-            : 'severity-low';
-
-        div.innerHTML = `
-            <strong>${inter.medication}</strong>
-            <p>${inter.description || 'Interaction detected'}</p>
-            <span class="severity-badge ${severityClass}">${(inter.severity || 'Unknown').toUpperCase()}</span>
-        `;
-        els.interactionsList.appendChild(div);
-    });
-}
-
-function generateSummary() {
-    const e = state.entities || {};
-    
-    // Handle medications that may be objects with name property
-    const medications = (e.medications || []).map(med => {
-        return typeof med === 'object' && med.name ? med.name : med;
-    }).join(', ') || 'None listed';
-    
-    const conditions = (e.conditions || []).join(', ') || 'None listed';
-    const allergies = (e.allergies || []).join(', ') || 'No known allergies';
-    const instructions = (e.instructions || []).join('. ') || 'Standard care';
-
-    return `Patient Medical Summary. Medications: ${medications}. Medical Conditions: ${conditions}. Allergies: ${allergies}. Care Instructions: ${instructions}.`;
-}
-
-/* ===== UI Helpers ===== */
-
-function showStep(step) {
-    els.stepPanels.forEach(panel => panel.classList.remove('active'));
-    els.stepNavs.forEach(nav => nav.classList.remove('active'));
-
-    const panel = document.getElementById(`step-${step}`);
-    const nav = document.querySelector(`[data-step="${step}"]`);
-
-    if (panel) panel.classList.add('active');
-    if (nav) nav.classList.add('active');
-
-    state.currentStep = step;
-}
-
-function showError(type, message) {
-    const box = document.getElementById(`error-${type}`);
-    if (box) {
-        box.textContent = '❌ ' + message;
-        box.style.display = 'block';
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Upload failed');
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('Upload failed:', error);
+        throw error;
     }
 }
 
-function clearError(type) {
-    const box = document.getElementById(`error-${type}`);
-    if (box) box.style.display = 'none';
-}
-
-function logDebug(endpoint, method, status, payload, response) {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-        <td><strong>${endpoint}</strong></td>
-        <td>${method}</td>
-        <td style="color: ${status >= 200 && status < 300 ? '#2ecc71' : '#e74c3c'};">${status}</td>
-        <td style="font-size: 10px; max-width: 200px;">
-            <details style="cursor: pointer;">
-                <summary>View</summary>
-                <pre style="margin-top: 4px; background: #f8f9fa; padding: 4px; font-size: 9px; overflow-x: auto;">
-Req: ${JSON.stringify(payload).substring(0, 100)}...
-                </pre>
-            </details>
-        </td>
-    `;
-    els.debugTable.innerHTML = '';
-    els.debugTable.appendChild(row);
-}
-
-function resetApp() {
-    state.extractedText = '';
-    state.confidence = 0;
-    state.entities = {};
-    state.interactions = [];
-    state.currentMeds = [];
-
-    els.fileInput.value = '';
-    els.reviewedText.value = '';
-    els.newMedInput.value = '';
-    els.medAddInput.value = '';
-    els.audioPlayer.src = '';
-
-    Object.keys(els).forEach(key => {
-        if (key.startsWith('errorUpload') || key.startsWith('error')) {
-            const el = els[key];
-            if (el) el.style.display = 'none';
+// ===== STEP 1: UPLOAD =====
+function initUploadStep() {
+    // Drag and drop
+    elements.uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        elements.uploadZone.style.borderColor = '#fb923c';
+        elements.uploadZone.style.background = 'rgba(251, 146, 60, 0.08)';
+    });
+    
+    elements.uploadZone.addEventListener('dragleave', () => {
+        elements.uploadZone.style.borderColor = 'rgba(251, 146, 60, 0.3)';
+        elements.uploadZone.style.background = 'rgba(255, 255, 255, 0.04)';
+    });
+    
+    elements.uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        elements.uploadZone.style.borderColor = 'rgba(251, 146, 60, 0.3)';
+        elements.uploadZone.style.background = 'rgba(255, 255, 255, 0.04)';
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileSelect(files[0]);
         }
     });
-
-    document.querySelectorAll('.preview-box').forEach(box => {
-        box.style.display = 'none';
+    
+    // Click to upload
+    elements.uploadZone.addEventListener('click', () => {
+        elements.fileInput.click();
     });
-
-    els.medTags.innerHTML = '';
-    showStep('upload');
+    
+    elements.fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+        }
+    });
+    
+    // Extract button
+    elements.btnExtractText.addEventListener('click', handleExtractText);
 }
 
-/* Initialize */
-console.log('✅ MediVault HITL ready');
-showStep('upload');
+function handleFileSelect(file) {
+    state.uploadedFile = file;
+    
+    // Show confirmation card (CHANGE 1: File confirmation card)
+    const fileSize = (file.size / 1024 / 1024).toFixed(2);
+    elements.confirmationFilename.textContent = `✓ ${file.name}`;
+    elements.confirmationDetails.textContent = `${fileSize} MB • Ready to extract`;
+    elements.fileConfirmation.style.display = 'block';
+    
+    // Enable extract button
+    elements.btnExtractText.disabled = false;
+    elements.btnExtractText.style.cursor = 'pointer';
+    
+    hideError(elements.errorUpload);
+}
+
+async function handleExtractText() {
+    if (!state.uploadedFile) return;
+    
+    elements.btnExtractText.disabled = true;
+    elements.extractLoading.style.display = 'block';
+    hideError(elements.errorUpload);
+    
+    try {
+        const result = await uploadFile(state.uploadedFile);
+        
+        state.rawText = result.text;
+        state.ocrConfidence = result.confidence || 0;
+        
+        // Show preview
+        elements.textPreview.textContent = state.rawText;
+        elements.confidenceScore.textContent = `${Math.round(state.ocrConfidence * 100)}%`;
+        elements.uploadPreview.style.display = 'block';
+        
+        showToast('✓ Text extracted successfully', 'success');
+        
+        // Auto-advance to extraction (populate textarea)
+        setTimeout(() => {
+            setCurrentStep('extract');
+            elements.reviewedText.value = state.rawText;
+            elements.reviewedText.focus();
+        }, 500);
+        
+    } catch (error) {
+        showError(elements.errorUpload, `❌ ${error.message}`);
+        showToast(`Error: ${error.message}`, 'error');
+    } finally {
+        elements.extractLoading.style.display = 'none';
+        elements.btnExtractText.disabled = false;
+    }
+}
+
+// ===== STEP 2: EXTRACT & NORMALIZE =====
+function initExtractStep() {
+    elements.btnNormalizeExtract.addEventListener('click', handleNormalizeExtract);
+}
+
+async function handleNormalizeExtract() {
+    const text = elements.reviewedText.value.trim();
+    
+    if (!text) {
+        showToast('Please enter text to normalize', 'warning');
+        return;
+    }
+    
+    elements.btnNormalizeExtract.disabled = true;
+    elements.normalizeLoading.style.display = 'block';
+    hideError(elements.errorExtract);
+    
+    try {
+        // Call normalize endpoint
+        const result = await apiCall('/ai/normalize-and-extract', 'POST', {
+            text: text,
+        });
+        
+        state.extractedEntities = result;
+        
+        // Show preview
+        elements.normalizedText.textContent = text;
+        renderEntityItems(elements.entitiesMedications, result.medications || []);
+        renderEntityItems(elements.entitiesConditions, result.conditions || []);
+        renderEntityItems(elements.entitiesAllergies, result.allergies || []);
+        
+        elements.extractPreview.style.display = 'block';
+        
+        // CHANGE 4: Auto-save to database after extraction
+        await autoSavePrescription();
+        
+        showToast('✓ Entities extracted and saved to vault', 'success');
+        
+    } catch (error) {
+        showError(elements.errorExtract, `❌ ${error.message}`);
+        showToast(`Error: ${error.message}`, 'error');
+    } finally {
+        elements.normalizeLoading.style.display = 'none';
+        elements.btnNormalizeExtract.disabled = false;
+    }
+}
+
+async function autoSavePrescription() {
+    elements.saveStatus.style.display = 'block';
+    
+    try {
+        const result = await apiCall('/ai/save-prescription', 'POST', {
+            patient_id: 1,
+            doctor_id: 1,
+            s3_image_url: 'local-upload',
+            entities: state.extractedEntities,
+        });
+        
+        state.prescriptionId = result.prescription_id || result.id;
+        elements.saveStatus.style.display = 'none';
+        
+        return result;
+    } catch (error) {
+        elements.saveStatus.style.display = 'none';
+        // Show warning but don't block
+        showToast('⚠ Save failed — continuing anyway', 'warning');
+        console.error('Auto-save failed:', error);
+    }
+}
+
+// ===== STEP 3: INTERACTIONS (Auto-check on arrival) =====
+function initInteractStep() {
+    elements.btnAdvanceVoice.addEventListener('click', () => {
+        setCurrentStep('voice');
+    });
+}
+
+async function autoCheckInteractions() {
+    if (!state.extractedEntities || !state.extractedEntities.medications) {
+        // No interactions to check
+        elements.interactLoading.style.display = 'none';
+        elements.interactPreview.style.display = 'block';
+        elements.interactionsList.innerHTML = '<p style="color: #cbd5e1; text-align: center;">0 medications - no interaction check needed</p>';
+        return;
+    }
+    
+    try {
+        const result = await apiCall('/ai/check-interaction', 'POST', {
+            medications: state.extractedEntities.medications,
+        });
+        
+        state.interactionResults = result;
+        
+        elements.interactLoading.style.display = 'none';
+        elements.interactPreview.style.display = 'block';
+        
+        // Render interactions
+        if (result.interactions && result.interactions.length > 0) {
+            elements.interactionsList.innerHTML = result.interactions.map(interaction => `
+                <div class="interaction-item">
+                    <div style="margin-bottom: 8px;">
+                        <span class="severity-badge severity-high">${interaction.severity || 'HIGH'}</span>
+                        <strong>${interaction.drug1} + ${interaction.drug2}</strong>
+                    </div>
+                    <div style="color: #cbd5e1; font-size: 13px;">${interaction.description || interaction.interaction}</div>
+                </div>
+            `).join('');
+        } else {
+            elements.interactionsList.innerHTML = '<p style="color: #34d399; text-align: center;">✓ No major interactions found</p>';
+        }
+        
+        showToast('✓ Interaction check complete', 'success');
+        
+    } catch (error) {
+        elements.interactLoading.style.display = 'none';
+        showError(elements.errorInteract, `❌ ${error.message}`);
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+// ===== STEP 4: VOICE (Optional with Skip button) =====
+function initVoiceStep() {
+    elements.btnGenerateAudio.addEventListener('click', handleGenerateAudio);
+    elements.btnSkipVoice.addEventListener('click', showSuccessScreen); // CHANGE 3: Skip button
+}
+
+async function handleGenerateAudio() {
+    const voice = elements.voiceSelect.value;
+    
+    if (!state.extractedEntities) {
+        showToast('No entities to generate audio for', 'warning');
+        return;
+    }
+    
+    elements.btnGenerateAudio.disabled = true;
+    elements.ttsLoading.style.display = 'block';
+    hideError(elements.errorVoice);
+    
+    try {
+        // Create summary text
+        const summaryContent = createSummaryText();
+        elements.summaryText.textContent = summaryContent;
+        
+        // Call TTS endpoint
+        const result = await apiCall('/ai/tts', 'POST', {
+            text: summaryContent,
+            voice: voice,
+        });
+        
+        if (result.audio_url || result.audio) {
+            const audioData = result.audio_url ? result.audio : result.audio;
+            
+            // Create blob and play
+            if (typeof audioData === 'string' && audioData.startsWith('data:')) {
+                const arr = audioData.split(',');
+                const bstr = atob(arr[1]);
+                const n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                for (let i = 0; i < n; i++) {
+                    u8arr[i] = bstr.charCodeAt(i);
+                }
+                const blob = new Blob([u8arr], { type: 'audio/mpeg' });
+                const audioUrl = URL.createObjectURL(blob);
+                elements.audioPlayer.src = audioUrl;
+                elements.audioPlayer.style.display = 'block';
+                state.audioBlob = blob;
+            }
+        }
+        
+        elements.voicePreview.style.display = 'block';
+        showToast('✓ Audio generated successfully', 'success');
+        
+    } catch (error) {
+        showError(elements.errorVoice, `❌ ${error.message}`);
+        showToast(`Error: ${error.message}`, 'error');
+    } finally {
+        elements.ttsLoading.style.display = 'none';
+        elements.btnGenerateAudio.disabled = false;
+    }
+}
+
+function createSummaryText() {
+    const entities = state.extractedEntities;
+    let summary = 'Patient Prescription Summary. ';
+    
+    if (entities.medications && entities.medications.length > 0) {
+        summary += `Medications: ${entities.medications.map(m => typeof m === 'string' ? m : m.name).join(', ')}. `;
+    }
+    
+    if (entities.conditions && entities.conditions.length > 0) {
+        summary += `Conditions: ${entities.conditions.join(', ')}. `;
+    }
+    
+    if (entities.allergies && entities.allergies.length > 0) {
+        summary += `Allergies: ${entities.allergies.join(', ')}. `;
+    }
+    
+    return summary;
+}
+
+// ===== SUCCESS SCREEN =====
+function showSuccessScreen() {
+    elements.stepPanels.forEach(panel => panel.classList.remove('active'));
+    
+    // Populate success details
+    elements.successRxId.textContent = state.prescriptionId || '—';
+    
+    if (state.extractedEntities && state.extractedEntities.medications) {
+        elements.successMedications.innerHTML = renderMedicationCards(state.extractedEntities.medications);
+    }
+    
+    elements.successScreen.style.display = 'block';
+    
+    // Update progress to completed
+    elements.progressSteps.forEach(step => {
+        step.classList.add('completed');
+        step.classList.remove('active');
+    });
+    
+    showToast('✓ Prescription processing complete', 'success');
+}
+
+// ===== Initialization =====
+function initEventListeners() {
+    // Sidebar navigation
+    elements.sidebarItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const step = item.dataset.step;
+            if (step === 'extract' && !state.rawText) {
+                showToast('Please extract text first', 'warning');
+                return;
+            }
+            if (step === 'interact' && !state.extractedEntities) {
+                showToast('Please normalize & extract first', 'warning');
+                return;
+            }
+            if (step === 'voice' && !state.extractedEntities) {
+                showToast('Please normalize & extract first', 'warning');
+                return;
+            }
+            setCurrentStep(step);
+        });
+    });
+    
+    // Button listeners
+    elements.btnAdvanceInteract.addEventListener('click', () => {
+        setCurrentStep('interact');
+        // CHANGE 2: Auto-check interactions when arriving at step 3
+        setTimeout(autoCheckInteractions, 100);
+    });
+    
+    // Start over buttons
+    elements.btnStartOver.addEventListener('click', () => {
+        // Reset state
+        state.currentStep = 'upload';
+        state.uploadedFile = null;
+        state.rawText = '';
+        state.extractedEntities = null;
+        state.interactionResults = null;
+        state.audioBlob = null;
+        
+        // Clear form
+        elements.fileInput.value = '';
+        elements.reviewedText.value = '';
+        elements.voiceSelect.value = 'Joanna';
+        
+        // Hide elements
+        elements.fileConfirmation.style.display = 'none';
+        elements.uploadPreview.style.display = 'none';
+        elements.extractPreview.style.display = 'none';
+        elements.interactPreview.style.display = 'none';
+        elements.voicePreview.style.display = 'none';
+        elements.audioPlayer.style.display = 'none';
+        elements.audioPlayer.src = '';
+        
+        // Reset buttons
+        elements.btnExtractText.disabled = true;
+        elements.btnGenerateAudio.disabled = false;
+        
+        setCurrentStep('upload');
+    });
+    
+    elements.btnClose.addEventListener('click', () => {
+        elements.btnStartOver.click();
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    initUploadStep();
+    initExtractStep();
+    initInteractStep();
+    initVoiceStep();
+    initEventListeners();
+    
+    // Show initial step
+    setCurrentStep('upload');
+});
