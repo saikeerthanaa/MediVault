@@ -1,6 +1,7 @@
 import io
 import os
 import json
+import pymysql
 from datetime import datetime
 from flask import Flask, request, jsonify, Response, send_file, send_from_directory
 from flask_cors import CORS
@@ -431,6 +432,56 @@ def create_app():
             "fhir_bundle_saved": fhir_bundle_saved,
             "warnings": warnings
         })
+
+    # Debug: Check database status
+    @app.get("/ai/check-database")
+    def check_database():
+        """Check database connection and return table statistics"""
+        try:
+            with DatabaseService.get_connection() as conn:
+                # Use regular tuple cursor for these simple queries
+                cursor = conn.cursor(pymysql.cursors.Cursor)
+                
+                # Get row counts
+                cursor.execute("SELECT COUNT(*) FROM prescriptions")
+                prescription_count = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM medicines")
+                medicine_count = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM prescription_medicines")
+                link_count = cursor.fetchone()[0]
+                
+                # Get most recent prescription
+                cursor.execute("""
+                    SELECT id, patient_id, doctor_id, prescribed_date, created_at 
+                    FROM prescriptions 
+                    ORDER BY created_at DESC LIMIT 1
+                """)
+                recent = cursor.fetchone()
+                
+                return jsonify({
+                    "ok": True,
+                    "database_connected": True,
+                    "tables": {
+                        "prescriptions": prescription_count,
+                        "medicines": medicine_count,
+                        "prescription_medicines": link_count
+                    },
+                    "most_recent_prescription": {
+                        "id": recent[0],
+                        "patient_id": recent[1],
+                        "doctor_id": recent[2],
+                        "prescribed_date": recent[3],
+                        "created_at": recent[4].isoformat() if recent[4] else None
+                    } if recent else None
+                })
+        except Exception as e:
+            return jsonify({
+                "ok": False,
+                "database_connected": False,
+                "error": str(e)
+            }), 500
 
     # Global error handlers - return JSON instead of HTML
 

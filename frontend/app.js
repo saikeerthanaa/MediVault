@@ -59,6 +59,7 @@ const els = {
     summaryText: document.getElementById('summary-text'),
     voicePreview: document.getElementById('voice-preview'),
     errorVoice: document.getElementById('error-voice'),
+    btnSavePrescription: document.getElementById('btn-save-prescription'),
     btnReset: document.getElementById('btn-reset'),
     
     // Debug
@@ -100,6 +101,7 @@ els.btnAdvanceInteract.addEventListener('click', () => showStep('interact'));
 els.btnCheckInteraction.addEventListener('click', callCheckInteraction);
 els.btnAdvanceVoice.addEventListener('click', () => showStep('voice'));
 els.btnGenerateAudio.addEventListener('click', callTts);
+els.btnSavePrescription.addEventListener('click', savePrescription);
 els.btnReset.addEventListener('click', resetApp);
 
 els.medAddInput.addEventListener('keypress', (e) => {
@@ -325,6 +327,66 @@ async function callTts() {
     } finally {
         els.btnGenerateAudio.disabled = false;
         els.btnGenerateAudio.innerHTML = '<span>🎤 Generate Audio</span>';
+    }
+}
+
+async function savePrescription() {
+    clearError('voice');
+    els.btnSavePrescription.disabled = true;
+    els.btnSavePrescription.innerHTML = '<span>⏳ Saving...</span>';
+
+    try {
+        // Build the save request payload
+        const payload = {
+            patient_id: 1,  // TODO: get from UI or user session
+            doctor_id: 2,   // TODO: get from UI or user session
+            s3_image_url: 'https://placeholder.com/prescription.jpg',  // TODO: use actual uploaded image
+            entities: state.entities
+        };
+
+        const response = await fetch('/ai/save-prescription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        logDebug('/ai/save-prescription', 'POST', response.status, payload, {});
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.ok) {
+            els.btnSavePrescription.innerHTML = '<span>✓ Saved Successfully</span>';
+            els.btnSavePrescription.style.background = 'rgba(0, 184, 148, 0.3)';
+            els.btnSavePrescription.style.borderColor = '#00b894';
+            
+            // Show success details
+            const details = `
+                <div style="margin-top: 16px; padding: 12px; background: rgba(0, 184, 148, 0.1); border-left: 3px solid #00b894; border-radius: 4px;">
+                    <p><strong>✓ Prescription Saved</strong></p>
+                    <p style="font-size: 12px; color: #a8a8d4; margin-top: 8px;">
+                        ID: ${result.prescription_id}<br>
+                        Medicines: ${result.medicines_saved}<br>
+                        Interactions Found: ${result.interactions?.length || 0}
+                    </p>
+                </div>
+            `;
+            els.voicePreview.insertAdjacentHTML('beforeend', details);
+        } else {
+            throw new Error(result.error || 'Failed to save prescription');
+        }
+
+    } catch (error) {
+        console.error(error);
+        showError('voice', error.message);
+    } finally {
+        els.btnSavePrescription.disabled = false;
+        if (!els.btnSavePrescription.innerHTML.includes('✓')) {
+            els.btnSavePrescription.innerHTML = '<span>💾 Save to Database</span>';
+        }
     }
 }
 

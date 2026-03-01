@@ -26,7 +26,7 @@ class Config:
     # MySQL Configuration for prescription storage
     MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
     MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
-    MYSQL_USER = os.getenv("MYSQL_USER", "medivault_user")
-    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "medivault_password")
+    MYSQL_USER = os.getenv("MYSQL_USER", "root")
+    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "redBlue3011!")
     MYSQL_DB = os.getenv("MYSQL_DB", "medivault_db")
 

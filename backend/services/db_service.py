@@ -73,13 +73,12 @@ class DatabaseService:
                 # Step 1a: Insert prescription row
                 insert_rx_sql = """
                     INSERT INTO prescriptions 
-                    (patient_id, doctor_id, source, prescribed_date, s3_image_url, fhir_json, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    (patient_id, doctor_id, prescribed_date, s3_image_url, fhir_bundle)
+                    VALUES (%s, %s, %s, %s, %s)
                 """
                 cursor.execute(insert_rx_sql, (
                     patient_id,
                     doctor_id,
-                    'AI',
                     prescribed_date,
                     s3_image_url,
                     fhir_json
@@ -95,16 +94,16 @@ class DatabaseService:
                         continue
                     
                     # Insert or ignore the medicine master record
-                    insert_med_sql = "INSERT IGNORE INTO medicines (medicine_name) VALUES (%s)"
+                    insert_med_sql = "INSERT IGNORE INTO medicines (name) VALUES (%s)"
                     cursor.execute(insert_med_sql, (med_name,))
                     
                     # Get the medicine_id
-                    select_med_sql = "SELECT medicine_id FROM medicines WHERE medicine_name = %s"
+                    select_med_sql = "SELECT id FROM medicines WHERE name = %s"
                     cursor.execute(select_med_sql, (med_name,))
                     med_result = cursor.fetchone()
                     
                     if med_result:
-                        medicine_id = med_result['medicine_id']
+                        medicine_id = med_result[0] if isinstance(med_result, tuple) else med_result['id']
                         
                         # Insert prescription_medicines link
                         insert_link_sql = """
@@ -149,8 +148,8 @@ class DatabaseService:
                 
                 update_sql = """
                     UPDATE prescriptions 
-                    SET fhir_json = %s 
-                    WHERE prescription_id = %s
+                    SET fhir_bundle = %s 
+                    WHERE id = %s
                 """
                 cursor.execute(update_sql, (fhir_json, prescription_id))
                 conn.commit()

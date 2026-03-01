@@ -37,9 +37,9 @@ MediVault is a **patient-owned AI medical vault system** designed for India, ena
 
 ---
 
-## ✅ AI Implementation Status: COMPLETE (8/8 Tasks)
+## ✅ AI Implementation Status: COMPLETE (8/8 Tasks) + Database Integration
 
-All design.md tasks are fully implemented, tested, and verified:
+All design.md tasks are fully implemented, tested, and verified. Phase 4 (Database Persistence) now complete:
 
 | Task | Description | Status | Key Files |
 |------|-------------|--------|-----------|
@@ -51,8 +51,11 @@ All design.md tasks are fully implemented, tested, and verified:
 | 6 | Emergency summary endpoint | ✅ | app.py |
 | 7 | FHIR export endpoint | ✅ | fhir_bundle_generator.py |
 | 8 | Debug trace support | ✅ | config.py + endpoints |
+| **9** | **MySQL database persistence** | ✅ | **db_service.py** |
+| **10** | **Automated drug interaction checking** | ✅ | **app.py /ai/save-prescription** |
+| **11** | **HITL confirmation to database save** | ✅ | **frontend/app.js + index.html** |
 
-**Test Coverage**: 8/8 tests passing ✅
+**Test Coverage**: 8/8 core tests + database integration tests passing ✅
 
 ---
 
@@ -257,6 +260,71 @@ Response: {"ok": true/false, "bedrock_status": "ACTIVE|UNAVAILABLE"}
   - Streaming audio generation
   - Medical text optimization
 
+### 9. Save Prescription to Database (NEW - Phase 4)
+**POST `/ai/save-prescription`**
+- **Input**:
+  ```json
+  {
+    "patient_id": 1,
+    "doctor_id": 2,
+    "s3_image_url": "https://bucket.s3.amazonaws.com/prescription.jpg",
+    "entities": {
+      "medications": [
+        {"name": "Ibuprofen", "dosage": "200mg", "frequency": "Twice daily", "duration": "7 days"},
+        {"name": "Aspirin", "dosage": "81mg", "frequency": "Once daily", "duration": ""}
+      ],
+      "conditions": ["Fever"],
+      "allergies": ["Penicillin"]
+    }
+  }
+  ```
+- **Output**:
+  ```json
+  {
+    "ok": true,
+    "prescription_id": 42,
+    "medicines_saved": 2,
+    "interactions": [
+      {"drug1": "Ibuprofen", "drug2": "Aspirin", "severity": "HIGH", "note": "Increased GI bleeding risk"}
+    ],
+    "fhir_bundle_saved": true,
+    "warnings": []
+  }
+  ```
+- **Status**: ✅ MySQL Integration Complete
+- **Features**:
+  - Atomic transaction: All-or-nothing database write
+  - Auto drug interaction checking (all pairs, de-duplicated)
+  - FHIR bundle generation and storage
+  - Prescription history preservation
+
+### 10. Check Database Status
+**GET `/ai/check-database`**
+- **Output**:
+  ```json
+  {
+    "ok": true,
+    "database_connected": true,
+    "tables": {
+      "prescriptions": 42,
+      "medicines": 156,
+      "prescription_medicines": 128
+    },
+    "most_recent_prescription": {
+      "id": 42,
+      "patient_id": 1,
+      "doctor_id": 2,
+      "prescribed_date": "2026-03-01",
+      "created_at": "2026-03-01T14:23:45.123456"
+    }
+  }
+  ```
+- **Status**: ✅ Debug/Monitoring Endpoint
+- **Features**:
+  - Database connectivity verification
+  - Table statistics
+  - Recent prescription preview
+
 ---
 
 ## 🎨 UI/UX Improvements
@@ -269,17 +337,19 @@ Response: {"ok": true/false, "bedrock_status": "ACTIVE|UNAVAILABLE"}
 - Green success badges, red error states
 - Smooth transitions and hover effects
 
-### Four-Step Workflow
+### Five-Step Workflow (Updated - Phase 4)
 1. **Upload & Extract** - OCR-based text extraction with confidence display
 2. **Normalize & Review** - Patient verification of corrections
 3. **Check Interactions** - Drug safety checking with interaction alerts
 4. **Generate Audio** - Voice synthesis with FHIR export option
+5. **Save to Database** - ✅ NEW: Persistent prescription storage with auto-interaction checking
 
 ### Hardware Integration
 - **Drag-and-drop file upload** for ease of use
 - **File picker button** as backup
 - **Real-time confidence scoring** (color-coded: green >80%, amber <80%)
 - **Visual medication cards** with dosage, frequency, duration
+- **Database save confirmation** with prescription ID and statistics
 - **Audio player** with Polly-generated regional language audio
 
 ---
@@ -555,13 +625,15 @@ MediVault/
 
 ## 📈 Future Enhancements
 
-- [ ] Database persistence (RDS)
+- [x] ✅ **Database persistence (MySQL)** - COMPLETED Phase 4
 - [ ] User authentication (Cognito)
 - [ ] AWS Lambda deployment
 - [ ] Multi-language support beyond Hindi
 - [ ] Mobile app (iOS/Android)
 - [ ] Advanced analytics dashboard
 - [ ] Provider integration APIs
+- [ ] Patient data export/import
+- [ ] Medical record version control
 
 ---
 
@@ -578,7 +650,7 @@ MediVault/
 ## ✅ Verification Checklist
 
 - [x] All 8 AI tasks implemented
-- [x] All endpoints tested and working
+- [x] All endpoints tested and working (10 endpoints total)
 - [x] Medication extraction with schedules
 - [x] Drug interaction checking with citations
 - [x] Audio/voice synthesis
@@ -591,8 +663,12 @@ MediVault/
 - [x] Block-level OCR geometry
 - [x] Patient review workflow (HITL)
 - [x] Correction tracking
+- [x] ✅ **MySQL database integration (NEW - Phase 4)**
+- [x] ✅ **Prescription persistence with auto-interaction checking (NEW)**
+- [x] ✅ **Five-step HITL workflow with database save (NEW)**
+- [x] ✅ **Database monitoring endpoint /ai/check-database (NEW)**
 
-**Status**: 🟢 PRODUCTION READY
+**Status**: 🟢 PRODUCTION READY + DATABASE PERSISTENCE COMPLETE
 
 ---
 
@@ -605,9 +681,15 @@ MediVault/
 - Text-to-speech supports regional languages through Polly
 - FHIR export enables integration with hospital information systems
 - Emergency bundle designed for QR code accessibility
+- ✅ **NEW Phase 4**: Prescriptions now persisted to MySQL database with:
+  - Atomic transaction safety (all-or-nothing writes)
+  - Automated drug interaction checking on every save
+  - FHIR bundle generation and storage
+  - Complete prescription history tracking
+  - Database monitoring via `/ai/check-database` endpoint
 
 ---
 
-**Last Updated**: March 1, 2026
-**Version**: 1.0 - Production Release
-**Status**: ✅ Complete & Ready for Deployment
+**Last Updated**: March 1, 2026 (Phase 4 Database Integration Complete)
+**Version**: 2.0 - Database Persistence Release
+**Status**: ✅ Complete & Production Ready with Full Data Persistence
