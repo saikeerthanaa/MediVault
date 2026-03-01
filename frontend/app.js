@@ -333,7 +333,7 @@ async function handleExtractText() {
         elements.confidenceScore.textContent = `${Math.round(state.ocrConfidence)}%`;
         elements.uploadPreview.style.display = 'block';
         
-        showToast('✓ Text extracted successfully', 'success');
+        showToast('Text extracted successfully', 'success');
         
     } catch (error) {
         showError(elements.errorUpload, `❌ ${error.message}`);
@@ -382,7 +382,7 @@ async function handleNormalizeExtract() {
         // CHANGE 4: Auto-save to database after extraction
         await autoSavePrescription();
         
-        showToast('✓ Entities extracted and saved to vault', 'success');
+        showToast('Entities extracted and saved to vault', 'success');
         
     } catch (error) {
         showError(elements.errorExtract, `❌ ${error.message}`);
@@ -438,7 +438,7 @@ async function autoCheckInteractions() {
         // Check all medication pairs for interactions
         const meds = state.extractedEntities.medications || [];
         if (meds.length < 2) {
-            showToast('✓ Only 1 medication - no interactions possible', 'success');
+            showToast('Only 1 medication - no interactions possible', 'success');
             elements.interactLoading.style.display = 'none';
             elements.btnCheckInteractions.disabled = false;
             return;
@@ -485,7 +485,7 @@ async function autoCheckInteractions() {
             `).join('');
             showToast(`⚠️ ${allInteractions.length} interaction(s) found!`, 'warning');
         } else {
-            showToast('✓ No interactions found', 'success');
+            showToast('No interactions found', 'success');
         }
         
     } catch (error) {
@@ -547,7 +547,7 @@ async function handleGenerateAudio() {
         }
         
         elements.voicePreview.style.display = 'block';
-        showToast('✓ Audio generated successfully', 'success');
+        showToast('Audio generated successfully', 'success');
         
     } catch (error) {
         showError(elements.errorVoice, `❌ ${error.message}`);
@@ -596,7 +596,7 @@ function showSuccessScreen() {
         step.classList.remove('active');
     });
     
-    showToast('✓ Prescription processing complete', 'success');
+    showToast('Prescription processing complete', 'success');
 }
 
 // ===== Lab Reports Functions =====

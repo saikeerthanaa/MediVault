@@ -93,17 +93,35 @@ body::before {
 
 .sidebar-item {
     width: 56px;
-    height: 56px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
     cursor: pointer;
     border-radius: 12px;
     transition: all 0.3s ease;
     position: relative;
     opacity: 0.6;
     border-left: 3px solid transparent;
+    gap: 4px;
+    padding: 8px 0;
+}
+
+.sidebar-icon {
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-label {
+    font-size: 10px;
+    color: #cbd5e1;
+    text-align: center;
+    line-height: 1.2;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
 }
 
 .sidebar-item:hover {
@@ -111,11 +129,20 @@ body::before {
     transform: scale(1.05);
 }
 
+.sidebar-item:hover .sidebar-label {
+    opacity: 1;
+}
+
 .sidebar-item.active {
     opacity: 1;
     background: rgba(251, 146, 60, 0.2);
     border-left: 3px solid #fb923c;
     box-shadow: 0 4px 16px rgba(251, 146, 60, 0.3);
+}
+
+.sidebar-item.active .sidebar-label {
+    color: #fb923c;
+    opacity: 1;
 }
 
 /* Main content area */
@@ -362,6 +389,16 @@ body::before {
     background: rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    color: #f1f5f9;
+}
+
+select {
+    color: #f1f5f9;
+    background-color: rgba(15, 23, 42, 0.8);
+}
+
+select option {
+    background-color: #0f172a;
     color: #f1f5f9;
 }
 
@@ -794,12 +831,27 @@ body::before {
         <aside class="sidebar">
             <div class="sidebar-logo">🏥</div>
             <nav class="sidebar-nav">
-                <div class="sidebar-item active" data-step="upload" title="Upload Document">📄</div>
-                <div class="sidebar-item" data-step="extract" title="Extract & Normalize">🔍</div>
-                <div class="sidebar-item" data-step="interact" title="Check Interactions">⚡</div>
-                <div class="sidebar-item" data-step="voice" title="Voice Summary">🔊</div>
+                <div class="sidebar-item active" data-step="upload" title="Upload Document">
+                    <div class="sidebar-icon">📄</div>
+                    <div class="sidebar-label">Upload</div>
+                </div>
+                <div class="sidebar-item" data-step="extract" title="Extract & Normalize">
+                    <div class="sidebar-icon">🔍</div>
+                    <div class="sidebar-label">Extract</div>
+                </div>
+                <div class="sidebar-item" data-step="interact" title="Check Interactions">
+                    <div class="sidebar-icon">⚡</div>
+                    <div class="sidebar-label">Check</div>
+                </div>
+                <div class="sidebar-item" data-step="voice" title="Voice Summary">
+                    <div class="sidebar-icon">🔊</div>
+                    <div class="sidebar-label">Voice</div>
+                </div>
                 <div style="flex: 1;"></div>
-                <div class="sidebar-item" data-step="lab-reports" title="Lab Reports">💾</div>
+                <div class="sidebar-item" data-step="lab-reports" title="Lab Reports">
+                    <div class="sidebar-icon">💾</div>
+                    <div class="sidebar-label">Lab Reports</div>
+                </div>
             </nav>
         </aside>
 
