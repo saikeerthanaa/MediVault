@@ -30,6 +30,7 @@ const elements = {
     uploadZone: document.getElementById('upload-zone'),
     fileInput: document.getElementById('file-input'),
     btnExtractText: document.getElementById('btn-extract-text'),
+    btnContinueExtract: document.getElementById('btn-continue-extract'),
     fileConfirmation: document.getElementById('file-confirmation'),
     confirmationFilename: document.getElementById('confirmation-filename'),
     confirmationDetails: document.getElementById('confirmation-details'),
@@ -53,6 +54,7 @@ const elements = {
     errorExtract: document.getElementById('error-extract'),
     
     // Step 3: Interact
+    btnCheckInteractions: document.getElementById('btn-check-interactions'),
     interactLoading: document.getElementById('interact-loading'),
     interactPreview: document.getElementById('interact-preview'),
     interactionsList: document.getElementById('interactions-list'),
@@ -74,6 +76,20 @@ const elements = {
     successMedications: document.getElementById('success-medications'),
     btnStartOver: document.getElementById('btn-start-over'),
     btnClose: document.getElementById('btn-close'),
+    
+    // Lab Reports
+    labUploadZone: document.getElementById('lab-upload-zone'),
+    labFileInput: document.getElementById('lab-file-input'),
+    labFileName: document.getElementById('lab-file-name'),
+    labTestDate: document.getElementById('lab-test-date'),
+    labReportType: document.getElementById('lab-report-type'),
+    labName: document.getElementById('lab-name'),
+    btnSaveLabReport: document.getElementById('btn-save-lab-report'),
+    labError: document.getElementById('lab-error'),
+    labLoading: document.getElementById('lab-loading'),
+    labSuccess: document.getElementById('lab-success'),
+    labSuccessMsg: document.getElementById('lab-success-msg'),
+    progressBar: document.querySelector('.progress-bar'),
     
     // Toast
     toastContainer: document.querySelector('.toast-container'),
@@ -116,19 +132,29 @@ function setCurrentStep(stepName) {
         }
     });
     
-    // Update progress bar
-    const stepIndex = ['upload', 'extract', 'interact', 'voice'].indexOf(stepName);
-    elements.progressSteps.forEach((step, index) => {
-        if (index < stepIndex) {
-            step.classList.add('completed');
-            step.classList.remove('active');
-        } else if (index === stepIndex) {
-            step.classList.add('active');
-            step.classList.remove('completed');
-        } else {
-            step.classList.remove('active', 'completed');
+    // Hide progress bar for lab-reports (non-prescription workflow)
+    if (stepName === 'lab-reports') {
+        if (elements.progressBar) {
+            elements.progressBar.classList.add('hidden');
         }
-    });
+    } else {
+        if (elements.progressBar) {
+            elements.progressBar.classList.remove('hidden');
+        }
+        // Update progress bar for prescription workflow
+        const stepIndex = ['upload', 'extract', 'interact', 'voice'].indexOf(stepName);
+        elements.progressSteps.forEach((step, index) => {
+            if (index < stepIndex) {
+                step.classList.add('completed');
+                step.classList.remove('active');
+            } else if (index === stepIndex) {
+                step.classList.add('active');
+                step.classList.remove('completed');
+            } else {
+                step.classList.remove('active', 'completed');
+            }
+        });
+    }
     
     // Update panels
     elements.stepPanels.forEach(panel => {
@@ -153,9 +179,10 @@ function renderEntityItems(container, items) {
         return;
     }
     
-    container.innerHTML = items.map(item => 
-        `<div class="entity-item">${item}</div>`
-    ).join('');
+    container.innerHTML = items.map(item => {
+        const name = typeof item === 'object' ? item.name : item;
+        return `<div class="entity-item">${name}</div>`;
+    }).join('');
 }
 
 function renderMedicationCards(medications) {
@@ -262,6 +289,13 @@ function initUploadStep() {
     
     // Extract button
     elements.btnExtractText.addEventListener('click', handleExtractText);
+    
+    // Continue to Normalize button
+    elements.btnContinueExtract.addEventListener('click', () => {
+        setCurrentStep('extract');
+        elements.reviewedText.value = state.rawText;
+        elements.reviewedText.focus();
+    });
 }
 
 function handleFileSelect(file) {
@@ -290,22 +324,16 @@ async function handleExtractText() {
     try {
         const result = await uploadFile(state.uploadedFile);
         
-        state.rawText = result.text;
+        state.rawText = result.raw_text;
         state.ocrConfidence = result.confidence || 0;
         
         // Show preview
         elements.textPreview.textContent = state.rawText;
-        elements.confidenceScore.textContent = `${Math.round(state.ocrConfidence * 100)}%`;
+        // Confidence from backend is already 0-100 (from AWS Textract)
+        elements.confidenceScore.textContent = `${Math.round(state.ocrConfidence)}%`;
         elements.uploadPreview.style.display = 'block';
         
         showToast('✓ Text extracted successfully', 'success');
-        
-        // Auto-advance to extraction (populate textarea)
-        setTimeout(() => {
-            setCurrentStep('extract');
-            elements.reviewedText.value = state.rawText;
-            elements.reviewedText.focus();
-        }, 500);
         
     } catch (error) {
         showError(elements.errorUpload, `❌ ${error.message}`);
@@ -341,13 +369,13 @@ async function handleNormalizeExtract() {
             ocr_confidence: state.ocrConfidence,
         });
         
-        state.extractedEntities = result;
+        state.extractedEntities = result.entities;
         
         // Show preview
         elements.normalizedText.textContent = text;
-        renderEntityItems(elements.entitiesMedications, result.medications || []);
-        renderEntityItems(elements.entitiesConditions, result.conditions || []);
-        renderEntityItems(elements.entitiesAllergies, result.allergies || []);
+        renderEntityItems(elements.entitiesMedications, result.entities.medications || []);
+        renderEntityItems(elements.entitiesConditions, result.entities.conditions || []);
+        renderEntityItems(elements.entitiesAllergies, result.entities.allergies || []);
         
         elements.extractPreview.style.display = 'block';
         
@@ -388,8 +416,9 @@ async function autoSavePrescription() {
     }
 }
 
-// ===== STEP 3: INTERACTIONS (Auto-check on arrival) =====
+// ===== STEP 3: INTERACTIONS (Optional - Manual Check) =====
 function initInteractStep() {
+    elements.btnCheckInteractions.addEventListener('click', autoCheckInteractions);
     elements.btnAdvanceVoice.addEventListener('click', () => {
         setCurrentStep('voice');
     });
@@ -397,21 +426,21 @@ function initInteractStep() {
 
 async function autoCheckInteractions() {
     if (!state.extractedEntities || !state.extractedEntities.medications) {
-        // No interactions to check
-        elements.interactLoading.style.display = 'none';
-        elements.interactPreview.style.display = 'block';
-        elements.interactionsList.innerHTML = '<p style="color: #cbd5e1; text-align: center;">0 medications - no interaction check needed</p>';
+        showToast('No medications to check', 'warning');
         return;
     }
     
     try {
+        elements.btnCheckInteractions.disabled = true;
+        elements.interactLoading.style.display = 'block';
+        hideError(elements.errorInteract);
+        
         // Check all medication pairs for interactions
         const meds = state.extractedEntities.medications || [];
         if (meds.length < 2) {
-            // If only 1 med or less, no interactions to check
+            showToast('✓ Only 1 medication - no interactions possible', 'success');
             elements.interactLoading.style.display = 'none';
-            elements.interactPreview.style.display = 'block';
-            elements.interactionsList.innerHTML = '<p style="color: #34d399; text-align: center;">✓ No interaction check needed (< 2 medications)</p>';
+            elements.btnCheckInteractions.disabled = false;
             return;
         }
         
@@ -426,39 +455,45 @@ async function autoCheckInteractions() {
                     current_meds: [med2],
                 });
                 if (result.interactions) {
-                    allInteractions = allInteractions.concat(result.interactions);
+                    // Filter out "unknown" interactions and add drug pair info
+                    result.interactions.forEach(interaction => {
+                        if (interaction.severity && interaction.severity.toLowerCase() !== 'unknown') {
+                            interaction._drug1 = med1;
+                            interaction._drug2 = med2;
+                            allInteractions.push(interaction);
+                        }
+                    });
                 }
             }
         }
         
-        const result = { interactions: allInteractions };
-        
-        state.interactionResults = result;
+        state.interactionResults = { interactions: allInteractions };
         
         elements.interactLoading.style.display = 'none';
-        elements.interactPreview.style.display = 'block';
         
-        // Render interactions
-        if (result.interactions && result.interactions.length > 0) {
-            elements.interactionsList.innerHTML = result.interactions.map(interaction => `
+        // Only show if there are actual interactions
+        if (allInteractions.length > 0) {
+            elements.interactPreview.style.display = 'block';
+            elements.interactionsList.innerHTML = allInteractions.map(interaction => `
                 <div class="interaction-item">
                     <div style="margin-bottom: 8px;">
-                        <span class="severity-badge severity-high">${interaction.severity || 'HIGH'}</span>
-                        <strong>${interaction.drug1} + ${interaction.drug2}</strong>
+                        <span class="severity-badge severity-${interaction.severity ? interaction.severity.toLowerCase() : 'high'}">${interaction.severity || 'HIGH'}</span>
+                        <strong>${interaction._drug1} + ${interaction._drug2}</strong>
                     </div>
-                    <div style="color: #cbd5e1; font-size: 13px;">${interaction.description || interaction.interaction}</div>
+                    <div style="color: #cbd5e1; font-size: 13px;">${interaction.summary || interaction.mechanism || 'Interaction detected'}</div>
                 </div>
             `).join('');
+            showToast(`⚠️ ${allInteractions.length} interaction(s) found!`, 'warning');
         } else {
-            elements.interactionsList.innerHTML = '<p style="color: #34d399; text-align: center;">✓ No major interactions found</p>';
+            showToast('✓ No interactions found', 'success');
         }
-        
-        showToast('✓ Interaction check complete', 'success');
         
     } catch (error) {
         elements.interactLoading.style.display = 'none';
         showError(elements.errorInteract, `❌ ${error.message}`);
         showToast(`Error: ${error.message}`, 'error');
+    } finally {
+        elements.btnCheckInteractions.disabled = false;
     }
 }
 
@@ -564,12 +599,112 @@ function showSuccessScreen() {
     showToast('✓ Prescription processing complete', 'success');
 }
 
+// ===== Lab Reports Functions =====
+function displayLabFileName(file) {
+    elements.labFileName.textContent = `✓ ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+    elements.labFileName.style.display = 'block';
+}
+
+async function handleSaveLabReport() {
+    hideError(elements.labError);
+    elements.labSuccess.style.display = 'none';
+    
+    // Validate inputs
+    const file = elements.labFileInput.files[0];
+    const testDate = elements.labTestDate.value;
+    const reportType = elements.labReportType.value;
+    const labName = elements.labName.value;
+    
+    if (!file) {
+        showError(elements.labError, 'Please select a file');
+        return;
+    }
+    
+    if (!testDate) {
+        showError(elements.labError, 'Please select test date');
+        return;
+    }
+    
+    if (!reportType) {
+        showError(elements.labError, 'Please select report type');
+        return;
+    }
+    
+    // Show loading
+    elements.labLoading.style.display = 'block';
+    elements.btnSaveLabReport.disabled = true;
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('patient_id', 1); // TODO: Get actual patient ID
+        formData.append('test_date', testDate);
+        formData.append('report_type', reportType);
+        if (labName) {
+            formData.append('lab_name', labName);
+        }
+        
+        console.log('Sending lab report to /ai/save-lab-report...');
+        const response = await fetch('/ai/save-lab-report', {
+            method: 'POST',
+            body: formData
+        });
+        
+        console.log('Response status:', response.status);
+        
+        let result;
+        try {
+            result = await response.json();
+            console.log('Response body:', result);
+        } catch (e) {
+            console.error('Failed to parse response JSON:', e);
+            const text = await response.text();
+            console.log('Response text:', text);
+            throw new Error(`Server error (${response.status}): ${text.substring(0, 200)}`);
+        }
+        
+        if (!response.ok || !result.ok) {
+            throw new Error(result.error || `Server error (${response.status})`);
+        }
+        
+        // Show success
+        elements.labLoading.style.display = 'none';
+        elements.labSuccess.style.display = 'block';
+        elements.labSuccessMsg.textContent = `Lab report #${result.lab_report_id} saved successfully!`;
+        
+        // Reset form
+        setTimeout(() => {
+            elements.labFileInput.value = '';
+            elements.labTestDate.value = '';
+            elements.labReportType.value = '';
+            elements.labName.value = '';
+            elements.labFileName.style.display = 'none';
+            elements.labSuccess.style.display = 'none';
+            elements.btnSaveLabReport.disabled = false;
+            showToast('Lab report saved successfully', 'success');
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Save lab report failed:', error);
+        console.error('Error stack:', error.stack);
+        elements.labLoading.style.display = 'none';
+        elements.btnSaveLabReport.disabled = false;
+        showError(elements.labError, error.message || 'Failed to save lab report');
+    }
+}
+
 // ===== Initialization =====
 function initEventListeners() {
     // Sidebar navigation
     elements.sidebarItems.forEach(item => {
         item.addEventListener('click', () => {
             const step = item.dataset.step;
+            // Lab reports can be accessed anytime
+            if (step === 'lab-reports') {
+                setCurrentStep(step);
+                return;
+            }
+            // Prescription workflow has prerequisites
             if (step === 'extract' && !state.rawText) {
                 showToast('Please extract text first', 'warning');
                 return;
@@ -627,6 +762,46 @@ function initEventListeners() {
     elements.btnClose.addEventListener('click', () => {
         elements.btnStartOver.click();
     });
+
+    // Lab Reports handlers
+    if (elements.labUploadZone) {
+        // Drag and drop
+        elements.labUploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            elements.labUploadZone.style.borderColor = '#fb923c';
+            elements.labUploadZone.style.background = 'rgba(251, 146, 60, 0.08)';
+        });
+        
+        elements.labUploadZone.addEventListener('dragleave', () => {
+            elements.labUploadZone.style.borderColor = 'rgba(251, 146, 60, 0.3)';
+            elements.labUploadZone.style.background = 'rgba(255, 255, 255, 0.04)';
+        });
+        
+        elements.labUploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            elements.labUploadZone.style.borderColor = 'rgba(251, 146, 60, 0.3)';
+            elements.labUploadZone.style.background = 'rgba(255, 255, 255, 0.04)';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                elements.labFileInput.files = files;
+                displayLabFileName(files[0]);
+            }
+        });
+        
+        elements.labUploadZone.addEventListener('click', () => {
+            elements.labFileInput.click();
+        });
+        
+        elements.labFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                displayLabFileName(e.target.files[0]);
+            }
+        });
+        
+        // Save button
+        elements.btnSaveLabReport.addEventListener('click', handleSaveLabReport);
+    }
 }
 
 // Initialize on page load

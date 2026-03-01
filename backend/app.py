@@ -12,6 +12,7 @@ from services.bedrock_service import BedrockService, test_bedrock_connection
 from services.kb_rag_service import KBRagService
 from services.polly_service import PollyService
 from services.db_service import DatabaseService
+from services.s3_service import S3Service
 from utils.fhir_bundle_generator import FHIRBundleGenerator
 from utils.dosage_parser import DosageParser
 from utils.comprehend_medical_service import ComprehendMedicalService
@@ -27,6 +28,7 @@ def create_app():
     bedrock = BedrockService(app.config["AWS_REGION"], app.config["BEDROCK_MODEL_ID"])
     kb_rag = KBRagService(app.config["AWS_REGION"], app.config["BEDROCK_KB_ID"])
     polly = PollyService(app.config["AWS_REGION"])
+    s3 = S3Service(app.config["AWS_REGION"], bucket_name=app.config["S3_BUCKET"])
     
     @app.route("/")
     def index():
@@ -432,6 +434,129 @@ def create_app():
             "fhir_bundle_saved": fhir_bundle_saved,
             "warnings": warnings
         })
+
+    # Save Lab Report (upload to S3 + save to database)
+    @app.post("/ai/save-lab-report")
+    def save_lab_report():
+        """
+        Save lab report: upload file to S3 and insert into lab_reports table
+        
+        Input: multipart/form-data with:
+          - file: Image or PDF file
+          - patient_id: Patient ID (integer)
+          - test_date: Date of test (YYYY-MM-DD)
+          - report_type: Type of report (Blood, Urine, Thyroid, Lipid, Liver, Kidney, Imaging, Other)
+          - lab_name: (Optional) Name of lab facility
+        
+        Output:
+        {
+          "ok": true,
+          "lab_report_id": 15,
+          "s3_url": "https://...",
+          "message": "Lab report saved successfully"
+        }
+        """
+        try:
+            # Validate file
+            if "file" not in request.files:
+                return jsonify({"ok": False, "error": "Missing file"}), 400
+            
+            file = request.files["file"]
+            if not file or file.filename == "":
+                return jsonify({"ok": False, "error": "Invalid file"}), 400
+            
+            # Validate form fields
+            patient_id = request.form.get("patient_id")
+            test_date = request.form.get("test_date")
+            report_type = request.form.get("report_type")
+            lab_name = request.form.get("lab_name", "")
+            
+            if not patient_id:
+                return jsonify({"ok": False, "error": "Missing patient_id"}), 400
+            if not test_date:
+                return jsonify({"ok": False, "error": "Missing test_date"}), 400
+            if not report_type:
+                return jsonify({"ok": False, "error": "Missing report_type"}), 400
+            
+            # Validate report_type
+            valid_types = ["Blood", "Urine", "Thyroid", "Lipid", "Liver", "Kidney", "Imaging", "Other"]
+            if report_type not in valid_types:
+                return jsonify({"ok": False, "error": f"Invalid report_type. Must be one of: {', '.join(valid_types)}"}), 400
+            
+            # Read file bytes
+            file_bytes = file.read()
+            if not file_bytes:
+                return jsonify({"ok": False, "error": "File is empty"}), 400
+            
+            # Step 1: Upload to S3
+            s3_result = s3.upload_file(
+                file_bytes=file_bytes,
+                file_name=file.filename,
+                subfolder="lab-reports"
+            )
+            
+            if not s3_result.get("ok"):
+                error_msg = s3_result.get('error', 'Unknown S3 error')
+                return jsonify({
+                    "ok": False,
+                    "error": f"S3 upload failed: {error_msg}"
+                }), 500
+            
+            s3_url = s3_result.get("s3_url")
+            
+            # Step 2: Insert into lab_reports table
+            try:
+                with DatabaseService.get_connection() as conn:
+                    with conn.cursor() as cursor:
+                        # Insert lab report record
+                        sql = """
+                            INSERT INTO lab_reports 
+                            (patient_id, test_date, lab_name, report_type, s3_image_url, created_at, updated_at)
+                            VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                        """
+                        cursor.execute(sql, (
+                            int(patient_id),
+                            test_date,
+                            lab_name if lab_name else None,
+                            report_type,
+                            s3_url
+                        ))
+                    
+                    conn.commit()
+                    
+                    # Get the inserted ID
+                    with conn.cursor() as cursor:
+                        cursor.execute("SELECT LAST_INSERT_ID()")
+                        result = cursor.fetchone()
+                        if result:
+                            # Handle both dict and tuple return types
+                            if isinstance(result, dict):
+                                lab_report_id = result.get('LAST_INSERT_ID()')
+                            else:
+                                lab_report_id = result[0]
+                        else:
+                            raise Exception("Failed to get lab_report_id from LAST_INSERT_ID()")
+                
+                return jsonify({
+                    "ok": True,
+                    "lab_report_id": lab_report_id,
+                    "s3_url": s3_url,
+                    "message": "Lab report saved successfully"
+                })
+            
+            except pymysql.Error as db_err:
+                return jsonify({
+                    "ok": False,
+                    "error": f"Database error: {str(db_err)}"
+                }), 500
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                "ok": False,
+                "error": f"Failed to save lab report: {str(e)}"
+            }), 500
 
     # Debug: Check database status
     @app.get("/ai/check-database")

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediVault - Medical Document Processing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
 * {
     margin: 0;
@@ -17,194 +18,301 @@ html, body {
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-    background: linear-gradient(135deg, #24243e 0%, #0f0c29 100%);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     background-attachment: fixed;
-    color: #e8e8ff;
+    color: #f1f5f9;
     min-height: 100vh;
+    position: relative;
+    overflow: hidden;
 }
 
-/* Glassmorphism utility class - reusable for all glass containers */
-.glass {
-    background: rgba(255, 255, 255, 0.07);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+/* Warm glowing radial gradient overlay */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(ellipse 600px 400px at 20% 50%, rgba(120, 60, 20, 0.4) 0%, transparent 70%),
+        radial-gradient(ellipse 500px 300px at 80% 20%, rgba(80, 40, 100, 0.3) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
 }
 
-.wrapper {
+/* App shell */
+.app-shell {
+    position: relative;
+    z-index: 1;
     display: flex;
+    flex-direction: column;
     height: 100vh;
 }
 
+/* Sidebar - 72px icon-only */
 .sidebar {
-    width: 280px;
-    background: rgba(255, 255, 255, 0.07);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    color: white;
-    padding: 24px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 72px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 8px;
     overflow-y: auto;
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 100;
 }
 
-.logo {
+/* Logo */
+.sidebar-logo {
+    font-size: 32px;
+    margin-bottom: 32px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 40px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    cursor: pointer;
 }
 
-.logo-icon {
-    font-size: 32px;
-}
-
-.logo h1 {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 2px;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.logo p {
-    font-size: 11px;
-    opacity: 0.7;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #a8a8d4;
-}
-
-.steps-nav {
+/* Sidebar navigation items */
+.sidebar-nav {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 40px;
+    flex: 1;
 }
 
-.step-nav {
+.sidebar-item {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    position: relative;
+    opacity: 0.6;
+    border-left: 3px solid transparent;
+}
+
+.sidebar-item:hover {
+    opacity: 0.8;
+    transform: scale(1.05);
+}
+
+.sidebar-item.active {
+    opacity: 1;
+    background: rgba(251, 146, 60, 0.2);
+    border-left: 3px solid #fb923c;
+    box-shadow: 0 4px 16px rgba(251, 146, 60, 0.3);
+}
+
+/* Main content area */
+.main-area {
+    margin-left: 72px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Top header bar */
+.top-bar {
+    height: 64px;
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    padding: 0 32px;
+    gap: 24px;
+    flex-shrink: 0;
+}
+
+.top-bar-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f1f5f9;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    opacity: 0.6;
 }
 
-.step-nav:hover {
-    background: rgba(255, 255, 255, 0.1);
-    opacity: 1;
-}
-
-.step-nav.active {
-    background: linear-gradient(135deg, rgba(108, 92, 231, 0.3), rgba(95, 61, 196, 0.2));
-    border: 1px solid #6c5ce7;
-    opacity: 1;
-    box-shadow: 0 8px 32px rgba(108, 92, 231, 0.2);
-}
-
-.step-num {
-    width: 32px;
-    height: 32px;
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background: #34d399;
     border-radius: 50%;
-    border: 2px solid rgba(108, 92, 231, 0.5);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.top-bar-search {
+    flex: 1;
+    max-width: 300px;
+}
+
+.top-bar-search input {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #f1f5f9;
+    font-size: 13px;
+}
+
+.top-bar-search input::placeholder {
+    color: rgba(241, 245, 249, 0.5);
+}
+
+/* Progress bar - horizontal with connecting lines */
+.progress-bar {
+    height: 80px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 0 32px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.progress-bar.hidden {
+    display: none;
+}
+
+/* Progress step indicator */
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 2;
+}
+
+.progress-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: 14px;
-    color: #a29bfe;
+    color: #cbd5e1;
+    transition: all 0.3s ease;
 }
 
-.step-nav.active .step-num {
-    border-color: #6c5ce7;
-    background: rgba(108, 92, 231, 0.2);
-    color: #a29bfe;
+.progress-step.active .progress-circle {
+    background: rgba(251, 146, 60, 0.3);
+    border-color: #fb923c;
+    color: #fbbf24;
+    box-shadow: 0 0 16px rgba(251, 146, 60, 0.4);
 }
 
-.step-info {
-    flex: 1;
+.progress-step.completed .progress-circle {
+    background: #34d399;
+    border-color: #10b981;
+    color: white;
 }
 
-.step-title {
-    font-weight: 600;
-    font-size: 13px;
-    color: #e8e8ff;
+.progress-step.completed .progress-circle::after {
+    content: '✓';
+    position: absolute;
 }
 
-.step-desc {
+.progress-label {
     font-size: 11px;
-    color: #a8a8d4;
+    font-weight: 500;
+    color: #cbd5e1;
+    text-transform: uppercase;
 }
 
-.debug-details {
-    margin-top: auto;
-    padding-top: 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+/* Connecting lines between progress steps */
+.progress-bar::before {
+    content: '';
+    position: absolute;
+    top: 40%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.1) 100%);
+    z-index: 1;
 }
 
-.debug-details summary {
-    cursor: pointer;
-    font-size: 12px;
-    padding: 8px;
-    opacity: 0.7;
-    user-select: none;
-    color: #a8a8d4;
-}
-
-.main {
+/* Content area */
+.content {
     flex: 1;
     overflow-y: auto;
-    padding: 40px;
+    padding: 32px;
 }
 
 .step-panel {
     display: none;
+    animation: fadeIn 0.4s ease;
 }
 
 .step-panel.active {
     display: block;
 }
 
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .step-content h2 {
     font-size: 28px;
     margin-bottom: 8px;
-    color: #e8e8ff;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: #f1f5f9;
+    font-weight: 700;
 }
 
 .step-desc {
     font-size: 14px;
-    color: #a8a8d4;
+    color: #cbd5e1;
     margin-bottom: 24px;
 }
 
+/* Upload zone */
 .upload-zone {
-    border: 2px dashed rgba(108, 92, 231, 0.5);
-    border-radius: 12px;
+    border: 2px dashed rgba(251, 146, 60, 0.3);
+    border-radius: 16px;
     padding: 60px 40px;
     text-align: center;
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.07);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(8px);
     transition: all 0.3s ease;
     margin-bottom: 24px;
 }
 
 .upload-zone:hover {
-    border-color: #6c5ce7;
-    background: rgba(108, 92, 231, 0.15);
-    box-shadow: 0 8px 32px rgba(108, 92, 231, 0.2);
+    border-color: #fb923c;
+    background: rgba(251, 146, 60, 0.08);
+    box-shadow: 0 8px 32px rgba(251, 146, 60, 0.15);
 }
 
 .upload-zone input {
@@ -219,15 +327,16 @@ body {
 .upload-main {
     font-size: 16px;
     font-weight: 600;
-    color: #e8e8ff;
+    color: #f1f5f9;
     margin-bottom: 4px;
 }
 
 .upload-sub {
     font-size: 13px;
-    color: #a8a8d4;
+    color: #cbd5e1;
 }
 
+/* Forms and inputs */
 .form-group {
     margin-bottom: 20px;
 }
@@ -237,63 +346,62 @@ body {
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #a8a8d4;
+    color: #cbd5e1;
     margin-bottom: 8px;
     letter-spacing: 0.5px;
 }
 
-.text-input {
+.text-input, select {
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid rgba(108, 92, 231, 0.3);
-    border-radius: 8px;
+    border: 1px solid rgba(251, 146, 60, 0.2);
+    border-radius: 12px;
     font-family: inherit;
     font-size: 14px;
     transition: all 0.3s ease;
-    background: rgba(255, 255, 255, 0.07);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    color: #e8e8ff;
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #f1f5f9;
 }
 
-.text-input::placeholder {
-    color: #7a7a9e;
+.text-input::placeholder, select::placeholder {
+    color: rgba(241, 245, 249, 0.5);
 }
 
-.text-input:focus {
+.text-input:focus, select:focus {
     outline: none;
-    border-color: #6c5ce7;
-    background: rgba(108, 92, 231, 0.15);
-    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+    border-color: #fb923c;
+    background: rgba(251, 146, 60, 0.1);
+    box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.15);
 }
 
+/* Buttons */
 .btn {
-    padding: 12px 24px;
+    padding: 14px 24px;
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     font-weight: 600;
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    width: 100%;
-    display: flex;
+    transition: all 0.3s ease;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    font-family: inherit;
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, rgba(108, 92, 231, 0.8), rgba(95, 61, 196, 0.8));
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
     color: white;
-    border: 1px solid rgba(108, 92, 231, 0.6);
+    border: none;
+    width: 100%;
 }
 
 .btn-primary:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(108, 92, 231, 0.4);
-    background: linear-gradient(135deg, #7c6ce7, #6f4dd4);
+    box-shadow: 0 12px 32px rgba(251, 146, 60, 0.4);
 }
 
 .btn-primary:disabled {
@@ -302,14 +410,16 @@ body {
 }
 
 .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    color: #e8e8ff;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    color: #f1f5f9;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(12px);
+    width: 100%;
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 24px rgba(255, 255, 255, 0.1);
 }
 
 .btn-lg {
@@ -318,69 +428,134 @@ body {
     margin-top: 20px;
 }
 
+.btn-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.btn-group .btn {
+    width: 100%;
+}
+
+/* Glass card */
+.glass-card {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 24px;
+}
+
+/* Preview / confirmation card */
 .preview-box {
     margin-top: 24px;
     padding: 24px;
-    background: rgba(255, 255, 255, 0.07);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .preview-item {
-    margin-bottom: 16px;
+    margin-bottom: 20px;
 }
 
 .preview-item label {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #a8a8d4;
+    color: #cbd5e1;
     margin-bottom: 8px;
 }
 
-.score-badge {
-    display: inline-block;
-    padding: 8px 16px;
-    border-radius: 6px;
+/* File confirmation card */
+.file-confirmation {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    padding: 24px;
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.file-confirmation-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.file-confirmation-text {
+    color: #34d399;
     font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.file-confirmation-details {
     font-size: 13px;
-    background: linear-gradient(135deg, #00b894, #00a67e);
-    color: white;
+    color: #cbd5e1;
 }
 
-.text-preview {
-    background: rgba(15, 12, 41, 0.3);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+/* Medication grid */
+.medication-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+}
+
+.medication-card {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-left: 3px solid #fb923c;
     padding: 16px;
-    font-family: monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    color: #e8e8ff;
-    max-height: 300px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
+    transition: all 0.3s ease;
 }
 
+.medication-card:hover {
+    box-shadow: 0 8px 24px rgba(251, 146, 60, 0.2);
+    transform: translateY(-2px);
+}
+
+.medication-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 12px;
+}
+
+.medication-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #cbd5e1;
+    margin-bottom: 8px;
+}
+
+.medication-detail strong {
+    color: #fbbf24;
+}
+
+/* Entity cards grid */
 .entities-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
     margin: 24px 0;
 }
 
 .entity-card {
-    background: rgba(255, 255, 255, 0.07);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(108, 92, 231, 0.3);
-    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     padding: 16px;
 }
 
@@ -388,24 +563,53 @@ body {
     font-size: 13px;
     font-weight: 600;
     margin-bottom: 12px;
-    color: #a29bfe;
+    color: #fbbf24;
 }
 
 .entity-items {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .entity-item {
     padding: 8px 12px;
-    background: rgba(108, 92, 231, 0.1);
+    background: rgba(251, 146, 60, 0.1);
     border-radius: 6px;
     font-size: 12px;
-    color: #e8e8ff;
-    border-left: 3px solid #6c5ce7;
+    color: #f1f5f9;
+    border-left: 3px solid #fb923c;
 }
 
+/* Score badge */
+.score-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    background: linear-gradient(135deg, #34d399, #10b981);
+    color: white;
+}
+
+/* Text preview */
+.text-preview {
+    background: rgba(15, 26, 46, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #f1f5f9;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 16px;
+}
+
+/* Tags container */
 .tags-container {
     display: flex;
     flex-wrap: wrap;
@@ -418,49 +622,45 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(108, 92, 231, 0.15);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    color: #a29bfe;
+    background: rgba(251, 146, 60, 0.15);
+    color: #fbbf24;
     padding: 6px 12px;
     border-radius: 20px;
     font-size: 12px;
     font-weight: 500;
-    border: 1px solid #6c5ce7;
+    border: 1px solid #fb923c;
 }
 
 .tag button {
     background: none;
     border: none;
-    color: #a29bfe;
+    color: #fbbf24;
     cursor: pointer;
     font-size: 14px;
     padding: 0;
 }
 
+/* Error message */
 .error-message {
     padding: 12px 16px;
-    background: rgba(220, 20, 60, 0.15);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(220, 20, 60, 0.5);
-    border-left: 4px solid #dc143c;
-    border-radius: 6px;
-    color: #ff6b9d;
+    background: rgba(248, 113, 113, 0.15);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-left: 4px solid #f87171;
+    border-radius: 8px;
+    color: #fca5a5;
     font-size: 13px;
     margin-top: 16px;
 }
 
+/* Interaction results */
 .interaction-item {
     padding: 16px;
-    background: rgba(255, 255, 255, 0.07);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(220, 20, 60, 0.3);
-    border-left: 4px solid #dc143c;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.25);
+    border-left: 4px solid #f87171;
     border-radius: 8px;
     margin-bottom: 12px;
-    color: #e8e8ff;
+    color: #f1f5f9;
 }
 
 .severity-badge {
@@ -470,243 +670,439 @@ body {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+    margin-right: 8px;
 }
 
 .severity-high {
-    background: rgba(220, 20, 60, 0.2);
-    color: #ff6b9d;
+    background: rgba(248, 113, 113, 0.25);
+    color: #fca5a5;
 }
 
-.review-status {
-    display: inline-block;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-weight: 600;
+.severity-moderate {
+    background: rgba(251, 146, 60, 0.25);
+    color: #fdba74;
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.toast {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 16px 20px;
+    min-width: 300px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: auto;
+    animation: slideIn 0.3s ease;
+}
+
+.toast.success {
+    border-left: 4px solid #34d399;
+}
+
+.toast.error {
+    border-left: 4px solid #f87171;
+}
+
+.toast.warning {
+    border-left: 4px solid #fbbf24;
+}
+
+.toast-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.toast-text {
+    color: #f1f5f9;
     font-size: 13px;
-    background: rgba(0, 184, 148, 0.2);
-    color: #00b894;
+    font-weight: 500;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100px) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) translateY(0);
+    }
+}
+
+/* Loading spinner */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(251, 146, 60, 0.3);
+    border-top-color: #fb923c;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Success screen */
+.success-screen {
+    text-align: center;
+    padding: 40px;
+}
+
+.success-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    animation: bounce 0.6s ease;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.success-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #34d399;
+    margin-bottom: 8px;
+}
+
+.success-message {
+    color: #cbd5e1;
+    margin-bottom: 32px;
 }
     </style>
 </head>
 <body>
-    <div class="wrapper">
-        <!-- Sidebar -->
+    <div class="app-shell">
+        <!-- Sidebar - icon only navigation -->
         <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon">🏥</div>
-                <div class="logo-text">
-                    <h1>MediVault</h1>
-                    <p>HITL Processing</p>
-                </div>
-            </div>
-            
-            <nav class="steps-nav">
-                <div class="step-nav" data-step="upload">
-                    <div class="step-num">1</div>
-                    <div class="step-info">
-                        <div class="step-title">Upload</div>
-                        <div class="step-desc">Select document</div>
-                    </div>
-                </div>
-                
-                <div class="step-nav" data-step="extract">
-                    <div class="step-num">2</div>
-                    <div class="step-info">
-                        <div class="step-title">Extract</div>
-                        <div class="step-desc">Normalize text</div>
-                    </div>
-                </div>
-                
-                <div class="step-nav" data-step="interact">
-                    <div class="step-num">3</div>
-                    <div class="step-info">
-                        <div class="step-title">Interact</div>
-                        <div class="step-desc">Check safety</div>
-                    </div>
-                </div>
-                
-                <div class="step-nav" data-step="voice">
-                    <div class="step-num">4</div>
-                    <div class="step-info">
-                        <div class="step-title">Voice</div>
-                        <div class="step-desc">Generate audio</div>
-                    </div>
-                </div>
+            <div class="sidebar-logo">🏥</div>
+            <nav class="sidebar-nav">
+                <div class="sidebar-item active" data-step="upload" title="Upload Document">📄</div>
+                <div class="sidebar-item" data-step="extract" title="Extract & Normalize">🔍</div>
+                <div class="sidebar-item" data-step="interact" title="Check Interactions">⚡</div>
+                <div class="sidebar-item" data-step="voice" title="Voice Summary">🔊</div>
+                <div style="flex: 1;"></div>
+                <div class="sidebar-item" data-step="lab-reports" title="Lab Reports">💾</div>
             </nav>
-
-            <details class="debug-details">
-                <summary>🐛 Debug</summary>
-                <div class="debug-content">
-                    <table id="debug-table">
-                        <tr style="display: none;">
-                            <td colspan="4" style="text-align:center; padding: 20px; color: #888; font-size: 12px;">No requests yet</td>
-                        </tr>
-                    </table>
-                </div>
-            </details>
         </aside>
 
-        <!-- Main Content -->
-        <main class="main">
-            <!-- Step 1: Upload -->
-            <section id="step-upload" class="step-panel active">
-                <div class="step-content">
-                    <h2>📄 Upload Medical Document</h2>
-                    <p class="step-desc">Upload a document image or PDF for processing</p>
-                    
-                    <div class="upload-zone" id="upload-zone">
-                        <input type="file" id="file-input" accept="image/*,.pdf" hidden>
-                        <div class="upload-icon">📁</div>
-                        <p class="upload-main">Click to upload or drag and drop</p>
-                        <p class="upload-sub">JPEG, PNG, PDF up to 10MB</p>
-                    </div>
-
-                    <button id="btn-upload" class="btn btn-primary btn-lg" disabled>
-                        <span>🔄 Extract Text</span>
-                    </button>
-
-                    <div id="error-upload" class="error-message" style="display: none;"></div>
-
-                    <div id="upload-preview" class="preview-box" style="display: none;">
-                        <div class="preview-item">
-                            <label>Confidence Score</label>
-                            <div class="score-badge" id="confidence-score">—</div>
-                        </div>
-                        <div class="preview-item">
-                            <label>Review Required</label>
-                            <div class="review-status" id="review-status">—</div>
-                        </div>
-                        <div class="preview-item full">
-                            <label>Extracted Text</label>
-                            <div class="text-preview" id="text-preview"></div>
-                        </div>
-                        <button id="btn-advance-extract" class="btn btn-primary" disabled>
-                            Continue to Extract →
-                        </button>
-                    </div>
+        <!-- Main content area -->
+        <div class="main-area">
+            <!-- Top header bar -->
+            <div class="top-bar">
+                <div class="top-bar-title">
+                    <span>Welcome, MediVault AI</span>
+                    <div class="status-dot"></div>
                 </div>
-            </section>
+                <div class="top-bar-search">
+                    <input type="text" placeholder="🔍 Search...">
+                </div>
+            </div>
 
-            <!-- Step 2: Extract -->
-            <section id="step-extract" class="step-panel">
-                <div class="step-content">
-                    <h2>🔍 Normalize & Extract</h2>
-                    <p class="step-desc">Review and normalize the extracted text, then extract medical entities</p>
-                    
-                    <div class="form-group">
-                        <label>Reviewed Text</label>
-                        <textarea id="reviewed-text" class="text-input" rows="6" placeholder="Edit text if needed..."></textarea>
-                    </div>
+            <!-- Progress bar -->
+            <div class="progress-bar">
+                <div class="progress-step active">
+                    <div class="progress-circle">1</div>
+                    <div class="progress-label">Upload</div>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-circle">2</div>
+                    <div class="progress-label">Extract</div>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-circle">3</div>
+                    <div class="progress-label">Interact</div>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-circle">4</div>
+                    <div class="progress-label">Voice</div>
+                </div>
+            </div>
 
-                    <button id="btn-normalize" class="btn btn-primary btn-lg">
-                        <span>⚡ Normalize & Extract</span>
-                    </button>
-
-                    <div id="error-extract" class="error-message" style="display: none;"></div>
-
-                    <div id="extract-preview" class="preview-box" style="display: none;">
-                        <div class="preview-item full">
-                            <label>Normalized Text</label>
-                            <div class="text-preview" id="normalized-text"></div>
+            <!-- Content area -->
+            <div class="content">
+                <!-- Step 1: Upload -->
+                <section id="step-upload" class="step-panel active">
+                    <div class="step-content">
+                        <h2>📄 Upload Medical Document</h2>
+                        <p class="step-desc">Upload a prescription or medical document for processing</p>
+                        
+                        <div class="upload-zone" id="upload-zone">
+                            <input type="file" id="file-input" accept="image/*,.pdf" hidden>
+                            <div class="upload-icon">📁</div>
+                            <p class="upload-main">Click to upload or drag and drop</p>
+                            <p class="upload-sub">JPEG, PNG, PDF up to 10MB</p>
                         </div>
 
-                        <div class="entities-grid">
-                            <div class="entity-card">
-                                <h3>💊 Medications</h3>
-                                <div id="entities-medications" class="entity-items"></div>
+                        <div id="file-confirmation" class="file-confirmation" style="display: none;">
+                            <div class="file-confirmation-icon">✓</div>
+                            <div class="file-confirmation-text" id="confirmation-filename">Prescription uploaded</div>
+                            <div class="file-confirmation-details" id="confirmation-details">Ready to extract</div>
+                        </div>
+
+                        <button id="btn-extract-text" class="btn btn-primary btn-lg" disabled>
+                            🔄 Extract Text
+                        </button>
+
+                        <div id="extract-loading" style="display: none; text-align: center; margin-top: 20px;">
+                            <div class="spinner"></div>
+                            <p style="color: #cbd5e1; margin-top: 12px;">Extracting text...</p>
+                        </div>
+
+                        <div id="error-upload" class="error-message" style="display: none;"></div>
+
+                        <div id="upload-preview" class="glass-card" style="display: none;">
+                            <div class="preview-item">
+                                <label>Confidence Score</label>
+                                <div class="score-badge" id="confidence-score">—</div>
                             </div>
-                            <div class="entity-card">
-                                <h3>🏥 Conditions</h3>
-                                <div id="entities-conditions" class="entity-items"></div>
+                            <div class="preview-item">
+                                <label>Extracted Text</label>
+                                <div class="text-preview" id="text-preview"></div>
                             </div>
-                            <div class="entity-card">
-                                <h3>⚠️ Allergies</h3>
-                                <div id="entities-allergies" class="entity-items"></div>
+                            <button id="btn-continue-extract" class="btn btn-primary" style="margin-top: 20px;">
+                                Continue to Normalize →
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Step 2: Extract & Normalize -->
+                <section id="step-extract" class="step-panel">
+                    <div class="step-content">
+                        <h2>🔍 Normalize & Extract</h2>
+                        <p class="step-desc">Review text and extract medical entities. This will automatically save to your vault.</p>
+                        
+                        <div class="form-group">
+                            <label>Reviewed Text (Edit if needed)</label>
+                            <textarea id="reviewed-text" class="text-input" rows="6" placeholder="Edit extracted text..."></textarea>
+                        </div>
+
+                        <button id="btn-normalize-extract" class="btn btn-primary btn-lg">
+                            ⚡ Normalize & Extract
+                        </button>
+
+                        <div id="normalize-loading" style="display: none; text-align: center; margin-top: 20px;">
+                            <div class="spinner"></div>
+                            <p style="color: #cbd5e1; margin-top: 12px;">Processing...</p>
+                        </div>
+
+                        <div id="error-extract" class="error-message" style="display: none;"></div>
+
+                        <div id="extract-preview" class="glass-card" style="display: none;">
+                            <div class="preview-item">
+                                <label>Normalized Text</label>
+                                <div class="text-preview" id="normalized-text"></div>
                             </div>
-                            <div class="entity-card">
-                                <h3>📋 Instructions</h3>
-                                <div id="entities-instructions" class="entity-items"></div>
+
+                            <label style="display: block; margin-top: 20px; margin-bottom: 12px;">📋 Extracted Entities</label>
+                            <div class="medication-grid">
+                                <div class="entity-card">
+                                    <h3>💊 Medications</h3>
+                                    <div id="entities-medications" class="entity-items"></div>
+                                </div>
+                                <div class="entity-card">
+                                    <h3>🏥 Conditions</h3>
+                                    <div id="entities-conditions" class="entity-items"></div>
+                                </div>
+                                <div class="entity-card">
+                                    <h3>⚠️ Allergies</h3>
+                                    <div id="entities-allergies" class="entity-items"></div>
+                                </div>
+                            </div>
+
+                            <div id="save-status" style="display: none; text-align: center; margin: 20px 0;">
+                                <div class="spinner"></div>
+                                <p style="color: #cbd5e1; margin-top: 12px;">Saving to vault...</p>
+                            </div>
+
+                            <button id="btn-advance-interact" class="btn btn-primary">
+                                Continue to Interactions →
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Step 3: Interactions -->
+                <section id="step-interact" class="step-panel">
+                    <div class="step-content">
+                        <h2>⚡ Drug Interactions (Optional)</h2>
+                        <p class="step-desc">Check for potential drug interactions</p>
+                        
+                        <button id="btn-check-interactions" class="btn btn-primary btn-lg">
+                            🔍 Check Interactions
+                        </button>
+
+                        <div id="interact-loading" style="text-align: center; margin: 40px 0; display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #cbd5e1; margin-top: 12px;">Analyzing interactions...</p>
+                        </div>
+
+                        <div id="error-interact" class="error-message" style="display: none;"></div>
+
+                        <div id="interact-preview" class="glass-card" style="display: none;">
+                            <div id="interactions-list"></div>
+                        </div>
+                        
+                        <button id="btn-advance-voice" class="btn btn-primary" style="margin-top: 20px;">
+                            Continue to Voice Summary →
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Step 4: Voice Summary -->
+                <section id="step-voice" class="step-panel">
+                    <div class="step-content">
+                        <h2>🔊 Voice Summary</h2>
+                        <p class="step-desc">Generate an audio summary of the prescription</p>
+                        
+                        <div class="form-group">
+                            <label>Select Voice</label>
+                            <select id="voice-select" class="text-input">
+                                <option value="Joanna">Joanna (Female, US)</option>
+                                <option value="Matthew">Matthew (Male, US)</option>
+                                <option value="Raveesh">Raveesh (Male, India)</option>
+                                <option value="Aditi">Aditi (Female, India)</option>
+                            </select>
+                        </div>
+
+                        <div class="btn-group">
+                            <button id="btn-generate-audio" class="btn btn-primary">
+                                🎤 Generate Audio
+                            </button>
+                            <button id="btn-skip-voice" class="btn btn-secondary">
+                                ⏭ Skip & Complete
+                            </button>
+                        </div>
+
+                        <div id="tts-loading" style="display: none; text-align: center; margin-top: 20px;">
+                            <div class="spinner"></div>
+                            <p style="color: #cbd5e1; margin-top: 12px;">Generating audio...</p>
+                        </div>
+
+                        <div id="error-voice" class="error-message" style="display: none;"></div>
+
+                        <div id="voice-preview" class="glass-card" style="display: none;">
+                            <div class="preview-item">
+                                <label>Summary Text</label>
+                                <div class="text-preview" id="summary-text"></div>
+                            </div>
+                            <audio id="audio-player" controls style="width: 100%; margin: 20px 0; display: none;"></audio>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Success screen -->
+                <section id="success-screen" style="display: none;">
+                    <div class="success-screen">
+                        <div class="success-icon">✨</div>
+                        <h2 class="success-title">Prescription Saved Successfully!</h2>
+                        <p class="success-message">Your prescription has been processed and saved to your vault.</p>
+                        
+                        <div id="success-details" class="glass-card" style="text-align: left;">
+                            <div class="preview-item">
+                                <label>Prescription ID</label>
+                                <div style="font-size: 16px; font-weight: 600; color: #fb923c;" id="success-rx-id">—</div>
+                            </div>
+                            <div class="preview-item">
+                                <label>Medications</label>
+                                <div id="success-medications" class="medication-grid"></div>
                             </div>
                         </div>
 
-                        <button id="btn-advance-interact" class="btn btn-primary">
-                            Check Interactions →
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Step 3: Interact -->
-            <section id="step-interact" class="step-panel">
-                <div class="step-content">
-                    <h2>⚡ Drug Interactions</h2>
-                    <p class="step-desc">Check for drug interactions and safety issues</p>
-                    
-                    <div class="form-group">
-                        <label>New Medication</label>
-                        <input type="text" id="new-med-input" class="text-input" placeholder="e.g., Ibuprofen">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Current Medications</label>
-                        <div class="tags-container" id="med-tags"></div>
-                        <input type="text" id="med-add-input" class="text-input" placeholder="Add medication (press Enter)">
-                    </div>
-
-                    <button id="btn-check-interaction" class="btn btn-primary btn-lg">
-                        <span>🔍 Check Interactions</span>
-                    </button>
-
-                    <div id="error-interact" class="error-message" style="display: none;"></div>
-
-                    <div id="interact-preview" class="preview-box" style="display: none;">
-                        <div id="interactions-list" class="interactions-result"></div>
-                        <button id="btn-advance-voice" class="btn btn-primary">
-                            Generate Audio Summary →
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Step 4: Voice -->
-            <section id="step-voice" class="step-panel">
-                <div class="step-content">
-                    <h2>🔊 Voice Summary</h2>
-                    <p class="step-desc">Generate audio summary of the patient information</p>
-                    
-                    <div class="form-group">
-                        <label>Select Voice</label>
-                        <select id="voice-select" class="text-input">
-                            <option value="Joanna">Joanna (Female, US)</option>
-                            <option value="Matthew">Matthew (Male, US)</option>
-                            <option value="Raveesh">Raveesh (Male, India)</option>
-                            <option value="Aditi">Aditi (Female, India)</option>
-                        </select>
-                    </div>
-
-                    <button id="btn-generate-audio" class="btn btn-primary btn-lg">
-                        <span>🎤 Generate Audio</span>
-                    </button>
-
-                    <div id="error-voice" class="error-message" style="display: none;"></div>
-
-                    <div id="voice-preview" class="preview-box" style="display: none;">
-                        <div class="preview-item full">
-                            <label>Summary Text</label>
-                            <div class="text-preview" id="summary-text"></div>
+                        <div style="display: flex; gap: 16px; margin-top: 32px;">
+                            <button id="btn-start-over" class="btn btn-primary">
+                                ↻ Start Over
+                            </button>
+                            <button id="btn-close" class="btn btn-secondary">
+                                Close
+                            </button>
                         </div>
-                        <audio id="audio-player" controls style="width: 100%; margin: 20px 0;"></audio>
-                        <button id="btn-save-prescription" class="btn btn-primary">
-                            💾 Save to Database
-                        </button>
-                        <button id="btn-reset" class="btn btn-secondary">
-                            ↻ Start Over
-                        </button>
                     </div>
-                </div>
-            </section>
-        </main>
+                </section>
+
+                <!-- Lab Reports -->
+                <section id="step-lab-reports" class="step-panel">
+                    <div class="step-content">
+                        <h2>📋 Lab Reports</h2>
+                        <p class="step-desc">Upload and save your lab report</p>
+                        
+                        <div class="glass-card" style="padding: 32px;  max-width: 600px;">
+                            <div class="form-group">
+                                <label>Lab Report File</label>
+                                <div class="upload-zone" id="lab-upload-zone" style="padding: 40px;">
+                                    <input type="file" id="lab-file-input" accept="image/*,.pdf" hidden>
+                                    <div class="upload-icon">📁</div>
+                                    <p class="upload-main">Click to upload or drag and drop</p>
+                                    <p class="upload-sub">JPEG, PNG, PDF up to 10MB</p>
+                                </div>
+                                <div id="lab-file-name" style="color: #cbd5e1; margin-top: 12px; text-align: center; display: none;"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Test Date</label>
+                                <input type="date" id="lab-test-date" class="text-input" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Report Type</label>
+                                <select id="lab-report-type" class="text-input" required>
+                                    <option value="">Select report type...</option>
+                                    <option value="Blood">Blood Test</option>
+                                    <option value="Urine">Urine Test</option>
+                                    <option value="Thyroid">Thyroid Test</option>
+                                    <option value="Lipid">Lipid Panel</option>
+                                    <option value="Liver">Liver Function</option>
+                                    <option value="Kidney">Kidney Function</option>
+                                    <option value="Imaging">Imaging</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Lab Name (Optional)</label>
+                                <input type="text" id="lab-name" class="text-input" placeholder="e.g., Apollo Diagnostics">
+                            </div>
+
+                            <div id="lab-error" class="error-message" style="display: none;"></div>
+                            <div id="lab-loading" style="display: none; text-align: center; margin: 20px 0;">
+                                <div class="spinner"></div>
+                                <p style="color: #cbd5e1; margin-top: 12px;">Saving lab report...</p>
+                            </div>
+                            <div id="lab-success" class="glass-card" style="display: none; padding: 20px; background: rgba(52, 211, 153, 0.1); border-left: 4px solid #34d399; margin: 16px 0;">
+                                <p style="color: #34d399; font-weight: 600;">✓ Lab report saved successfully!</p>
+                                <p style="color: #cbd5e1; font-size: 13px; margin-top: 8px;" id="lab-success-msg"></p>
+                            </div>
+
+                            <button id="btn-save-lab-report" class="btn btn-primary btn-lg">
+                                💾 Save Lab Report
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
     </div>
+
+    <!-- Toast container -->
+    <div class="toast-container"></div>
 
     <script src="/static/app.js"></script>
 </body>

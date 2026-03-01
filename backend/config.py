@@ -29,4 +29,7 @@ class Config:
     MYSQL_USER = os.getenv("MYSQL_USER", "root")
     MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "redBlue3011!")
     MYSQL_DB = os.getenv("MYSQL_DB", "medivault_db")
+    
+    # S3 Configuration for file uploads
+    S3_BUCKET = os.getenv("S3_BUCKET", "medivault-lab-reports")
 
