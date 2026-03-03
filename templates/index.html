@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediVault | Pro Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+</head>
+<body>
+
+    <div class="wallpaper"></div>
+
+    <div class="dashboard-container">
+        
+        <nav class="glass-dock">
+            <div class="logo">🛡️</div>
+            <div class="menu-items">
+                <a href="#" class="active"><span class="material-icons-round">upload_file</span></a>
+                <a href="#"><span class="material-icons-round">history</span></a>
+                <a href="#"><span class="material-icons-round">analytics</span></a>
+                <a href="#"><span class="material-icons-round">settings</span></a>
+            </div>
+            <div class="profile"><img src="https://i.pravatar.cc/100?img=33" alt="Dr. Profile"></div>
+        </nav>
+
+        <main class="glass-grid">
+            
+            <div class="header-widget">
+                <div class="text">
+                    <h1>Welcome, Dr. Ayesha</h1>
+                    <p>Secure System Status: <span class="status-online">● Online & Encrypted</span></p>
+                </div>
+                <div class="search-bar">
+                    <span class="material-icons-round">search</span>
+                    <input type="text" placeholder="Search patient records...">
+                </div>
+            </div>
+
+            <div class="hero-card">
+    <div class="glass-overlay">
+        <h2>Patient Health<br>Overview</h2>
+        <div class="stats">
+            <div class="stat-item">
+                <span class="val">98%</span>
+                <span class="lbl">Security Score</span>
+            </div>
+            <div class="stat-item">
+                <span class="val">24</span>
+                <span class="lbl">Pending Scans</span>
+            </div>
+        </div>
+    </div> <img src="hero-image.jpg" class="floating-3d" alt="3D Health">
+</div>
+
+            <div class="upload-card">
+                <div class="card-title">
+                    <h3>Upload Scan</h3>
+                    <span class="material-icons-round">more_horiz</span>
+                </div>
+                
+                <div class="drop-zone" id="dropZone">
+                    <div class="icon-bg"><span class="material-icons-round">cloud_upload</span></div>
+                    <p><strong>Drag & Drop</strong><br>or click to secure file</p>
+                    <input type="file" id="fileInput" hidden>
+                </div>
+
+                <div id="loadingArea" class="hidden">
+                    <div class="loader"></div>
+                    <p>Encrypting...</p>
+                </div>
+
+                <div id="resultCard" class="hidden">
+                    <div class="success-badge">
+                        <span class="material-icons-round">verified</span> SECURED
+                    </div>
+                    <div class="result-details">
+                        <p id="pName">Name...</p>
+                        <code id="fileHash">Hash...</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-widget">
+                <div class="clock-display" id="clock">10:45 AM</div>
+                <div class="date-display" id="date">Feb 10, 2026</div>
+                <hr style="opacity: 0.2; margin: 15px 0;">
+                <div class="mini-list">
+                    <div class="mini-item">
+                        <span class="dot orange"></span> Next Audit: 2 PM
+                    </div>
+                    <div class="mini-item">
+                        <span class="dot blue"></span> 5 New Referrals
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
