@@ -191,3 +191,27 @@ code { display: block; background: rgba(0,0,0,0.3); padding: 10px; border-radius
 .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 .dot.orange { background: orange; }
 .dot.blue { background: cyan; }
+
+/* --- UI POLISH & ANIMATIONS --- */
+
+/* Makes the "Online" text glow green */
+.status-online {
+    color: var(--success);
+    font-weight: 600;
+}
+
+/* Creates the spinning loading circle for the upload box */
+.loader {
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top: 4px solid var(--accent);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin { 
+    0% { transform: rotate(0deg); } 
+    100% { transform: rotate(360deg); } 
+}
